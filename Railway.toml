@@ -12,3 +12,4 @@ startCommand = "python main.py"
 [[deploy]]
 instances = 1
 strategy = "rolling"
+services = []
