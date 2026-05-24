@@ -1,0 +1,78 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-05-24T16:20:18.783667",
+  "models": [
+    {
+      "model": "o3-pro",
+      "category": "coding",
+      "success_rate": 0.98,
+      "avg_duration": 2.1,
+      "cost_per_1k": 0.75,
+      "tasks_logged": 1523,
+      "rating": 5.0
+    },
+    {
+      "model": "claude-3.7-sonnet",
+      "category": "research",
+      "success_rate": 0.97,
+      "avg_duration": 1.8,
+      "cost_per_1k": 0.6,
+      "tasks_logged": 2341,
+      "rating": 5.0
+    },
+    {
+      "model": "gpt-4o",
+      "category": "writing",
+      "success_rate": 0.95,
+      "avg_duration": 1.2,
+      "cost_per_1k": 0.8,
+      "tasks_logged": 3421,
+      "rating": 4.5
+    },
+    {
+      "model": "llama-3.3-70b",
+      "category": "cost_efficiency",
+      "success_rate": 0.92,
+      "avg_duration": 1.9,
+      "cost_per_1k": 0.15,
+      "tasks_logged": 892,
+      "rating": 4.5
+    },
+    {
+      "model": "qwen-2.5-max",
+      "category": "general",
+      "success_rate": 0.94,
+      "avg_duration": 2.3,
+      "cost_per_1k": 0.3,
+      "tasks_logged": 1654,
+      "rating": 4.5
+    }
+  ],
+  "rankings": {
+    "generated_at": "2026-05-24T16:20:18.783495",
+    "total_models": 5,
+    "total_tasks_tracked": 9831,
+    "top_models_by_category": {
+      "coding": "o3-pro",
+      "research": "claude-3.7-sonnet",
+      "writing": "gpt-4o",
+      "cost_efficiency": "llama-3.3-70b",
+      "general": "qwen-2.5-max"
+    },
+    "best_value_models": [
+      "llama-3.3-70b",
+      "qwen-2.5-max",
+      "claude-3.7-sonnet"
+    ],
+    "fastest_models": [
+      "gpt-4o",
+      "claude-3.7-sonnet",
+      "llama-3.3-70b"
+    ],
+    "highest_success_models": [
+      "o3-pro",
+      "claude-3.7-sonnet",
+      "gpt-4o"
+    ]
+  }
+}
