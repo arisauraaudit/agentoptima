@@ -11,13 +11,13 @@ import uuid
 from datetime import datetime
 
 # Configuration
-API_BASE_URL = "https://agentoptima.ai/api"
+API_BASE_URL = "https://agentoptima.ai/api/v1"  # Updated to match endpoint structure
 
 class ArisTracker:
     """Integrates AgentOptima API with Aris task execution"""
     
-    def __init__(self, model_name="claude-3.5-sonnet"):
-        self.api_url = API_BASE_URL
+    def __init__(self, model_name="claude-3.5-sonnet", base_url="https://agentoptima.ai/api/v1"):
+        self.api_url = base_url
         self.model_name = model_name
         self.last_recommendations = None
     
@@ -80,7 +80,7 @@ class ArisTracker:
         # Log to AgentOptima
         self.track_task(
             task_type=context["task_type"],
-            task_description=description,
+            task_description=context.get("description", "unknown"),
             duration_seconds=duration,
             success=success,
             notes=notes

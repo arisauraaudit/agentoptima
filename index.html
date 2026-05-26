@@ -164,12 +164,10 @@
             </div>
         </div>
 
-        <div class="status">
-            🎯 <strong>Current State:</strong><br>
-            • API running on localhost:8000<br>
-            • Aris tracking enabled (all tasks logged)<br>
-            • Real metrics: 6,515 tokens, $0.024 cost (test)<br>
-            • Deploying public API to Railway... soon!
+        <div class="status" id="api-status">
+            🎯 <strong>Checking API...</strong><br>
+            <span id="status-text">Loading...</span><br>
+            <span id="real-time-metrics"></span>
         </div>
 
         <footer>
@@ -183,14 +181,36 @@
     </div>
 
     <script>
-        // Auto-fetch real status
-        fetch('http://localhost:8000/api/v1/status')
-            .then(r => r.json())
-            .then(data => {
-                console.log('API Status:', data);
-                // Update page with real data
-            })
-            .catch(err => console.log('Local API not available'))
+        // Get API base URL from environment or use default
+        const API_BASE = 'https://agentoptima.ai/api/v1';
+        
+        async function fetchAPI() {
+            try {
+                const response = await fetch(API_BASE + '/status');
+                const data = await response.json();
+                
+                if (data.status === 'running') {
+                    document.getElementById('api-status').className = 'status success';
+                    document.getElementById('status-text').textContent = '✅ API is live';
+                    document.getElementById('real-time-metrics').innerHTML = 
+                        `Tasks logged: ${data.tasks_logged || 0} | Storage: ${data.storage || 'unknown'}`;
+                } else {
+                    document.getElementById('api-status').className = 'status';
+                    document.getElementById('status-text').textContent = '❌ API not responding';
+                    document.getElementById('real-time-metrics').textContent = 'Check API health';
+                }
+            } catch (err) {
+                console.error('API fetch error:', err);
+                document.getElementById('api-status').className = 'status';
+                document.getElementById('status-text').textContent = '⚠️ API unreachable';
+                document.getElementById('real-time-metrics').textContent = 'Will retry in 30s';
+                setTimeout(fetchAPI, 30000); // retry after 30s
+            }
+        }
+        
+        // Retry pattern
+        fetchAPI();
+        setTimeout(fetchAPI, 30000); // retry every 30s
     </script>
 </body>
 </html>
