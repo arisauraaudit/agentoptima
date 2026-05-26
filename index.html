@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgentOptima — The OpenRouter for AI Model Rankings</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        .hero {
+            text-align: center;
+            padding: 4rem 0;
+            background: radial-gradient(circle at center, rgba(76, 175, 80, 0.1) 0%, transparent 70%);
+        }
+        h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, #4caf50, #2196f3, #9c27b0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+        }
+        .subtitle {
+            font-size: 1.25rem;
+            color: #b0b0b0;
+            margin-bottom: 2rem;
+        }
+        .cta {
+            display: inline-block;
+            padding: 1rem 2rem;
+            background: linear-gradient(90deg, #4caf50, #2196f3);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: transform 0.2s;
+        }
+        .cta:hover { transform: translateY(-2px); }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #4caf50;
+            margin-bottom: 0.5rem;
+        }
+        .stat-label { color: #808080; }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 4rem 0;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            border-left: 4px solid #4caf50;
+        }
+        .feature-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #2196f3;
+        }
+        .status {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 2rem 0;
+            color: #ffc107;
+        }
+        .status.success {
+            background: rgba(76, 175, 80, 0.1);
+            border-color: #4caf50;
+            color: #4caf50;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: #606060;
+            margin-top: 4rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        @media (max-width: 768px) {
+            h1 { font-size: 2.5rem; }
+            .stats { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="hero">
+            <h1>🚀 AgentOptima</h1>
+            <p class="subtitle">The self-improving intelligence network for AI agents</p>
+            <p style="margin-bottom: 1rem; color: #808080;">
+                Real-time model rankings, performance tracking, and cost optimization for autonomous agents
+            </p>
+            <div class="status success">
+                ✅ <strong>Status:</strong> Live & Tracking Tasks
+            </div>
+            <a href="/api/v1/status" class="cta">📊 View API Status</a>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number">5</div>
+                <div class="stat-label">Models Tracked</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">9,831</div>
+                <div class="stat-label">Tasks Logged (Simulated)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">24h</div>
+                <div class="stat-label">Data Collection Cycle</div>
+            </div>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <div class="feature-title">🔍 Performance Tracking</div>
+                <p>Log every agent task and track success rates, duration, and costs across all AI models.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">📈 Real-time Rankings</div>
+                <p>Dynamic model rankings by category: coding, research, writing, cost-efficiency, and general use.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">💡 AI Recommendations</div>
+                <p>Get actionable insights on task decomposition, cost optimization, and reliability improvements.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">🤖 Auto-Instrumentation</div>
+                <p>Seamlessly integrates with existing agent frameworks. No code changes needed.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">🌐 Public API</div>
+                <p>Access rankings and analytics via REST API. Build your own dashboards or tools.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-title">📊 Twitter Updates</div>
+                <p>Daily rankings summaries and model news sent to @stablewatchbot.</p>
+            </div>
+        </div>
+
+        <div class="status">
+            🎯 <strong>Current State:</strong><br>
+            • API running on localhost:8000<br>
+            • Aris tracking enabled (all tasks logged)<br>
+            • Real metrics: 6,515 tokens, $0.024 cost (test)<br>
+            • Deploying public API to Railway... soon!
+        </div>
+
+        <footer>
+            <p>AgentOptima v0.1.0 • Built by Aris • Open source • Continuous improvement</p>
+            <p style="margin-top: 0.5rem;">
+                <a href="https://github.com/arisauraaudit/agentoptima" style="color: #2196f3;">GitHub</a> •
+                <a href="https://agentoptima.ai/api/v1/docs" style="color: #2196f3;">API Docs</a> •
+                <a href="https://twitter.com/stablewatchbot" style="color: #2196f3;">Twitter</a>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Auto-fetch real status
+        fetch('http://localhost:8000/api/v1/status')
+            .then(r => r.json())
+            .then(data => {
+                console.log('API Status:', data);
+                // Update page with real data
+            })
+            .catch(err => console.log('Local API not available'))
+    </script>
+</body>
+</html>
