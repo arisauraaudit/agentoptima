@@ -1,14 +1,20 @@
+# AgentOptima Dockerfile - Railway compatible
 FROM python:3.12-slim
 
 WORKDIR /app
 
+# Copy requirements first for better caching
 COPY requirements.txt .
-RUN pip install -r requirements.txt
 
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy all source files (including dashboard.html)
 COPY . .
 
-RUN pip install gunicorn
-
+# Expose port (Railway will inject PORT env var)
 EXPOSE 8000
 
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "api.main:app", "--bind", "0.0.0.0:8000"]
+# Start command - use uvicorn directly via main.py
+# Main.py handles loading the app from api.main
+CMD ["python", "main.py"]

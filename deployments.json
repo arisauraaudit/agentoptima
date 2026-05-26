@@ -1,0 +1,19 @@
+{
+  "deployments": {
+    "railway": {
+      "project": "agentoptima",
+      "repo": "arisauraaudit/agentoptima",
+      "branch": "main",
+      "port": 8000,
+      "dockerfile": true,
+      "variables": {
+        "PORT": "8000"
+      },
+      "custom_domain": "agentoptima.ai",
+      "status": "deploying",
+      "last_deploy": "2026-05-26T14:47:00Z"
+    }
+  },
+  "created_at": "2026-05-26T14:00:00Z",
+  "version": "0.1.0"
+}

@@ -1,26 +1,17 @@
 # AgentOptima API - Main Application
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
-from starlette.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 import os
-import json
 
 # Application lifespan
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("🚀 AgentOptima starting...")
-    
-    # Serve static files if dashboard exists
-    if os.path.exists("/app/dashboard.html"):
-        print("✅ Dashboard found, mounting static files")
-    else:
-        print("⚠️ Dashboard not found, extracting from embedded HTML...")
-        # Create embedded dashboard
-        with open("/app/dashboard.html", "w") as f:
-            f.write(INDEX_HTML)
-    
+    print("🚀 AgentOptima API starting...")
+    print(f"   Dashboard file: {os.path.exists('/app/dashboard.html')}")
+    print(f"   Rankings file: {os.path.exists('/app/rankings.json')}")
+    print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
     print("🛑 AgentOptima shutdown")
 
@@ -40,22 +31,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Serve static files from static directory
-app.mount("/static", StaticFiles(directory="/app/static"), name="static")
-
-# Serve dashboard at root
+# Serve dashboard HTML at root
 @app.get("/")
-async def root():
-    if os.path.exists("/app/dashboard.html"):
-        return FileResponse("/app/dashboard.html", media_type="text/html")
-    elif os.path.exists("/app/index.html"):
-        return FileResponse("/app/index.html", media_type="text/html")
+async def dashboard():
+    """Serve the dashboard HTML from /app/dashboard.html"""
+    dashboard_path = "/app/dashboard.html"
+    index_path = "/app/index.html"
+    
+    if os.path.exists(dashboard_path):
+        return FileResponse(dashboard_path, media_type="text/html")
+    elif os.path.exists(index_path):
+        return FileResponse(index_path, media_type="text/html")
     else:
-        return HTMLResponse(content=INDEX_HTML, media_type="text/html")
+        return JSONResponse({"error": "Dashboard not found"}, status_code=500)
 
-# In-memory storage for MVP (will be replaced with DB later)
+# In-memory storage for MVP
 agent_data_store = []
-recommendations_cache = []
 
 # GET /health - Health check
 @app.get("/health")
@@ -79,9 +70,7 @@ async def track_task(request: TrackRequest):
             "timestamp": datetime.utcnow().isoformat()
         }
         agent_data_store.append(data)
-        
         print(f"💾 Logged task: {request.task_id} ({request.task_type})")
-        
         return TrackResponse(
             status="success",
             message=f"Task {request.task_id} logged successfully",
@@ -95,7 +84,6 @@ async def track_task(request: TrackRequest):
 async def get_recommendations():
     """Generate performance recommendations based on logged data"""
     try:
-        # Basic analytics based on available data
         recommendations = []
         summary = ""
         
@@ -105,12 +93,11 @@ async def get_recommendations():
             avg_duration = sum(t.get("duration_seconds", 0) for t in agent_data_store) / total_tasks
             total_cost = sum(t.get("cost_cents", 0) for t in agent_data_store)
             
-            # Generate actionable insights
             if successful / total_tasks < 0.8:
                 recommendations.append({
                     "priority": "high",
                     "category": "reliability",
-                    "message": f"Task success rate ({successful}/{total_tasks}) is below target. Review failed tasks and add retry logic.",
+                    "message": f"Task success rate ({successful}/{total_tasks}) is below target.",
                     "action": "Check notes field for error patterns"
                 })
             else:
@@ -121,16 +108,15 @@ async def get_recommendations():
                     "action": None
                 })
             
-            # Cost optimization recommendation
-            if avg_duration > 300:  # 5+ minutes
+            if avg_duration > 300:
                 recommendations.append({
                     "priority": "medium",
                     "category": "performance",
-                    "message": f"Average task duration ({avg_duration:.1f}s) is high. Consider batching or parallelization.",
+                    "message": f"Average task duration ({avg_duration:.1f}s) is high.",
                     "action": "Review task decomposition patterns"
                 })
             
-            summary = f"Analyzed {total_tasks} tasks | Success rate: {successful}/{total_tasks} | Avg duration: {avg_duration:.1f}s | Total cost: ${total_cost:.2f}"
+            summary = f"Analyzed {total_tasks} tasks | Success rate: {successful}/{total_tasks} | Avg duration: {avg_duration:.1f}s"
         else:
             summary = "No data logged yet. Start tracking tasks to receive recommendations."
             recommendations.append({
@@ -160,533 +146,26 @@ async def get_status():
         "endpoints": ["/health", "/api/v1/track", "/api/v1/recommendations", "/"]
     }
 
-# GET /api/v1/docs - OpenAPI docs redirect
-@app.get("/api/v1/docs")
-async def api_docs_redirect():
-    """Redirect to FastAPI docs"""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse("/api/openapi.json", status_code=302)
+# Pydantic models
+from pydantic import BaseModel
+from datetime import datetime
 
-# Embed the dashboard HTML
-INDEX_HTML = '''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgentOptima — Live Model Rankings</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-            color: #f1f5f9;
-            min-height: 100vh;
-            line-height: 1.6;
-            padding: 2rem;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        
-        .hero {
-            text-align: center;
-            padding: 3rem 0;
-            animation: fade-in 0.6s ease-in;
-        }
-        h1 {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            background: linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-weight: 800;
-            letter-spacing: -2px;
-        }
-        .subtitle {
-            font-size: 1.5rem;
-            color: #94a3b8;
-            margin-bottom: 2rem;
-        }
-        
-        .status-banner {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.75rem;
-            background: rgba(16, 185, 129, 0.15);
-            border: 2px solid #10b981;
-            border-radius: 12px;
-            padding: 1rem 2rem;
-            margin: 2rem auto;
-            animation: pulse 2s infinite;
-        }
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            background: #10b981;
-            border-radius: 50%;
-            animation: blink 1.5s infinite;
-        }
-        .status-text { font-weight: 600; color: #10b981; }
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin: 3rem 0;
-        }
-        .metric-card {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 16px;
-            padding: 2rem;
-            text-align: center;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-        }
-        .metric-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(16, 185, 129, 0.5);
-            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.2);
-        }
-        .metric-value {
-            font-size: 3rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #10b981, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-        .metric-label { color: #94a3b8; font-size: 1rem; }
-        .metric-sub { color: #64748b; font-size: 0.875rem; margin-top: 0.5rem; }
-        
-        .section { margin: 4rem 0; }
-        .section-title {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .section-title::before {
-            content: '';
-            width: 8px;
-            height: 32px;
-            background: linear-gradient(180deg, #10b981, #3b82f6);
-            border-radius: 4px;
-        }
-        
-        .rankings-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 2rem 0;
-            background: rgba(30, 41, 59, 0.8);
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid rgba(148, 163, 184, 0.2);
-        }
-        .rankings-table th,
-        .rankings-table td {
-            padding: 1.25rem;
-            text-align: left;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-        }
-        .rankings-table th {
-            background: rgba(15, 23, 42, 0.9);
-            font-weight: 600;
-            color: #e2e8f0;
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .rankings-table tr:last-child td {
-            border-bottom: none;
-        }
-        .rankings-table tr:hover {
-            background: rgba(16, 185, 129, 0.1);
-        }
-        .rankings-table .model-cell {
-            font-weight: 600;
-            color: #f1f5f9;
-        }
-        .rankings-table .category-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.375rem 0.75rem;
-            background: rgba(59, 130, 246, 0.2);
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: #93c5fd;
-            border: 1px solid rgba(59, 130, 246, 0.3);
-        }
-        .rankings-table .rating-stars {
-            color: #fbbf24;
-            margin-right: 0.5rem;
-        }
-        .rankings-table .success-rate { color: #10b981; font-weight: 600; }
-        .rankings-table .cost-badge { 
-            color: #f59e0b; 
-            font-weight: 600;
-        }
-        
-        .recommendations-panel {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 16px;
-            padding: 2rem;
-        }
-        .recommendation-item {
-            display: flex;
-            gap: 1rem;
-            padding: 1.5rem 0;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-            transition: all 0.3s ease;
-        }
-        .recommendation-item:last-child {
-            border-bottom: none;
-        }
-        .recommendation-item:hover {
-            background: rgba(16, 185, 129, 0.05);
-            border-radius: 12px;
-            padding-left: 1rem;
-        }
-        .prio-high { color: #ef4444; font-weight: 600; }
-        .prio-medium { color: #f59e0b; font-weight: 600; }
-        .prio-low { color: #10b981; font-weight: 600; }
-        .rec-message { flex: 1; color: #e2e8f0; }
-        .rec-action { color: #94a3b8; font-size: 0.875rem; }
-        
-        .live-feed {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-        .feed-card {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 12px;
-            padding: 1.25rem;
-            text-align: center;
-            transition: all 0.3s ease;
-            animation: slide-in 0.5s ease-out;
-        }
-        .feed-card:hover {
-            border-color: rgba(16, 185, 129, 0.5);
-            transform: scale(1.02);
-        }
-        .feed-model {
-            font-weight: 600;
-            color: #3b82f6;
-            margin-bottom: 0.5rem;
-        }
-        .feed-type {
-            font-size: 0.875rem;
-            color: #94a3b8;
-        }
-        
-        footer {
-            text-align: center;
-            padding: 4rem 0 2rem;
-            color: #64748b;
-            border-top: 1px solid rgba(148, 163, 184, 0.2);
-            margin-top: 4rem;
-        }
-        footer a {
-            color: #3b82f6;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        footer a:hover { color: #60a5fa; }
-        
-        .loading {
-            color: #64748b;
-            font-style: italic;
-        }
-        
-        .error-banner {
-            background: rgba(239, 68, 68, 0.15);
-            border: 2px solid #ef4444;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 2rem 0;
-            text-align: center;
-            color: #ef4444;
-        }
-        
-        @keyframes fade-in {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        @keyframes blink {
-            0%, 50%, 100% { opacity: 1; }
-            25%, 75% { opacity: 0.5; }
-        }
-        @keyframes slide-in {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        
-        @media (max-width: 768px) {
-            .container { padding: 1rem; }
-            h1 { font-size: 2.5rem; }
-            .subtitle { font-size: 1.125rem; }
-            .metric-value { font-size: 2.25rem; }
-            .rankings-table th,
-            .rankings-table td { padding: 1rem; font-size: 0.875rem; }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="hero">
-            <h1>🚀 AgentOptima</h1>
-            <p class="subtitle">The self-improving intelligence network</p>
-            
-            <div class="status-banner" id="api-status">
-                <div class="status-dot"></div>
-                <span class="status-text" id="status-text">Connecting to AgentOptima API...</span>
-            </div>
-        </div>
+class TrackRequest(BaseModel):
+    task_id: str
+    task_type: str
+    task_description: str
+    model: str
+    duration_seconds: int = None
+    cost_cents: float = None
+    success: bool = None
+    notes: str = None
 
-        <div class="metrics-grid" id="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-value" id="tasks-count">Loading...</div>
-                <div class="metric-label">Tasks Logged</div>
-                <div class="metric-sub" id="storage-info"></div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value" id="models-count">Loading...</div>
-                <div class="metric-label">Models Tracked</div>
-                <div class="metric-sub">Real-time analytics</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value" id="uptime-status">Checking...</div>
-                <div class="metric-label">API Status</div>
-                <div class="metric-sub" id="uptime-details"></div>
-            </div>
-        </div>
+class TrackResponse(BaseModel):
+    status: str
+    message: str
+    task_id: str
 
-        <div class="section">
-            <h2 class="section-title">Live Model Rankings</h2>
-            <div class="rankings-table" id="rankings-table">
-                <thead>
-                    <tr>
-                        <th>Model</th>
-                        <th>Category</th>
-                        <th>Success Rate</th>
-                        <th>Avg Duration</th>
-                        <th>Cost/1K</th>
-                        <th>Rating</th>
-                        <th>Tasks Logged</th>
-                    </tr>
-                </thead>
-                <tbody id="rankings-body">
-                    <tr>
-                        <td colspan="7" class="loading">Loading rankings...</td>
-                    </tr>
-                </tbody>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">AI Recommendations</h2>
-            <div class="recommendations-panel" id="recommendations-panel">
-                <p class="loading">Loading recommendations...</p>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Model Performance</h2>
-            <div class="live-feed" id="performance-feed">
-                <div class="feed-card">
-                    <div class="feed-model">Loading...</div>
-                    <div class="feed-type">Fetching data</div>
-                </div>
-            </div>
-        </div>
-
-        <footer>
-            <p>AgentOptima v0.1.0 • Built by Aris • Open source • Continuous improvement</p>
-            <p style="margin-top: 0.5rem; font-size: 0.875rem;">
-                <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
-                <a href="/api/v1/docs">API Docs</a> •
-                <a href="https://twitter.com/stablewatchbot">Twitter</a> •
-                <a href="/api/v1/status">Health Check</a>
-            </p>
-            <p style="margin-top: 1rem; font-size: 0.75rem; color: #475569;">
-                All data is cached for 30 seconds • Auto-refreshes every 30s
-            </p>
-        </footer>
-    </div>
-
-    <script>
-        const API_BASE = '/api/v1';
-        let rankingsData = [];
-        let lastRefresh = null;
-
-        async function fetchAPI(endpoint) {
-            try {
-                const response = await fetch(API_BASE + endpoint);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return await response.json();
-            } catch (error) {
-                console.error(`API fetch error for ${endpoint}:`, error);
-                throw error;
-            }
-        }
-
-        async function fetchRankings() {
-            const rankingsUrl = '/rankings.json';
-            try {
-                const response = await fetch(rankingsUrl);
-                if (!response.ok) throw new Error('Failed to fetch rankings');
-                const data = await response.json();
-                return data.models || [];
-            } catch (error) {
-                console.error('Rankings fetch error:', error);
-                // Return fallback data if rankings.json fails
-                return [
-                    { model: "o3-pro", category: "coding", success_rate: 0.98, avg_duration: 2.1, cost_per_1k: 0.75, tasks_logged: 1523, rating: 5.0 },
-                    { model: "claude-3.7-sonnet", category: "research", success_rate: 0.97, avg_duration: 1.8, cost_per_1k: 0.6, tasks_logged: 2341, rating: 5.0 },
-                    { model: "gpt-4o", category: "writing", success_rate: 0.95, avg_duration: 1.2, cost_per_1k: 0.8, tasks_logged: 3421, rating: 4.5 },
-                    { model: "llama-3.3-70b", category: "cost_efficiency", success_rate: 0.92, avg_duration: 1.9, cost_per_1k: 0.15, tasks_logged: 892, rating: 4.5 },
-                    { model: "qwen-2.5-max", category: "general", success_rate: 0.94, avg_duration: 2.3, cost_per_1k: 0.3, tasks_logged: 1654, rating: 4.5 }
-                ];
-            }
-        }
-
-        function renderRankings(models) {
-            rankingsData = models;
-            rankingsData.sort((a, b) => b.success_rate - a.success_rate);
-            
-            const tbody = document.getElementById('rankings-body');
-            tbody.innerHTML = models.map(model => {
-                const stars = '⭐'.repeat(Math.floor(model.rating));
-                const category = model.category.replace('_', ' ');
-                
-                return `
-                    <tr>
-                        <td class="model-cell">${model.model}</td>
-                        <td><span class="category-badge">${category}</span></td>
-                        <td class="success-rate">${(model.success_rate * 100).toFixed(0)}%</td>
-                        <td>${model.avg_duration.toFixed(1)}s</td>
-                        <td class="cost-badge">$${model.cost_per_1k.toFixed(2)}</td>
-                        <td><span class="rating-stars">${stars}</span>${model.rating}/5</td>
-                        <td>${model.tasks_logged.toLocaleString()}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        function renderRecommendations(recs) {
-            const container = document.getElementById('recommendations-panel');
-            
-            if (!recs || recs.recommendations.length === 0) {
-                container.innerHTML = '<p class="loading">No recommendations yet. Start tracking tasks!</p>';
-                return;
-            }
-            
-            container.innerHTML = recs.recommendations.map(rec => {
-                const prioClass = `prio-${rec.priority}`;
-                const actionText = rec.action ? `<div class="rec-action">→ ${rec.action}</div>` : '';
-                
-                return `
-                    <div class="recommendation-item">
-                        <span class="${prioClass}">${rec.priority.toUpperCase()}</span>
-                        <div class="rec-message">${rec.message}</div>
-                        ${actionText}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function renderPerformanceFeed() {
-            const container = document.getElementById('performance-feed');
-            
-            const topModels = rankingsData.slice(0, 6);
-            
-            container.innerHTML = topModels.map(model => `
-                <div class="feed-card">
-                    <div class="feed-model">${model.model}</div>
-                    <div class="feed-type">${model.category.replace('_', ' ').toUpperCase()}</div>
-                    <div style="color: #10b981; font-weight: 600; margin-top: 0.5rem;">
-                        ${(model.success_rate * 100).toFixed(0)}% success
-                    </div>
-                    <div style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem;">
-                        ${model.rating}⭐
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        async function refresh() {
-            try {
-                // Update status
-                document.getElementById('api-status').style.display = 'inline-flex';
-                document.getElementById('status-text').textContent = '✓ API Connected';
-                
-                // Fetch status
-                const status = await fetchAPI('/status');
-                document.getElementById('tasks-count').textContent = status.tasks_logged.toLocaleString();
-                document.getElementById('storage-info').textContent = status.storage;
-                document.getElementById('models-count').textContent = rankingsData.length;
-                document.getElementById('uptime-status').textContent = '✓ Online';
-                document.getElementById('uptime-details').textContent = `v${status.version}`;
-                
-                // Fetch rankings
-                rankingsData = await fetchRankings();
-                renderRankings(rankingsData);
-                
-                // Fetch recommendations
-                try {
-                    const recommendations = await fetchAPI('/recommendations');
-                    renderRecommendations(recommendations);
-                } catch (e) {
-                    // Show fallback recommendations
-                    document.getElementById('recommendations-panel').innerHTML = `
-                        <div class="recommendation-item">
-                            <span class="prio-high">HIGH PRIORITY</span>
-                            <div class="rec-message">No real data yet. Start tracking tasks to see AI insights!</div>
-                        </div>
-                    `;
-                }
-                
-                // Render performance feed
-                renderPerformanceFeed();
-                
-                lastRefresh = new Date();
-                console.log('Dashboard refreshed at', lastRefresh);
-                
-            } catch (error) {
-                console.error('Refresh error:', error);
-                document.getElementById('api-status').style.display = 'none';
-                
-                const errorBanner = document.createElement('div');
-                errorBanner.className = 'error-banner';
-                errorBanner.innerHTML = `
-                    <strong>⚠️ Unable to connect to AgentOptima API</strong><br>
-                    <span class="loading">Will retry in 30 seconds...</span>
-                `;
-                
-                const hero = document.querySelector('.hero');
-                hero.after(errorBanner);
-            }
-        }
-
-        // Initialize
-        refresh();
-        
-        // Auto-refresh every 30 seconds
-        setInterval(refresh, 30000);
-        
-        console.log('AgentOptima Dashboard initialized', new Date());
-    </script>
-</body>
-</html>'''
+class RecommendationsResponse(BaseModel):
+    recommendations: list
+    last_updated: str
+    summary: str
