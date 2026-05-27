@@ -312,7 +312,7 @@
                         <th>Category</th>
                         <th>Success Rate</th>
                         <th>Avg Duration</th>
-                        <th>Cost/1K</th>
+                        <th>Avg Cost/Task</th>
                         <th>Rating</th>
                         <th>Tasks Logged</th>
                     </tr>
@@ -381,35 +381,43 @@
                 return data.models || [];
             } catch (error) {
                 console.error('Rankings fetch error:', error);
-                // Return fallback data if rankings.json fails
-                return [
-                    { model: "o3-pro", category: "coding", success_rate: 0.98, avg_duration: 2.1, cost_per_1k: 0.75, tasks_logged: 1523, rating: 5.0 },
-                    { model: "claude-3.7-sonnet", category: "research", success_rate: 0.97, avg_duration: 1.8, cost_per_1k: 0.6, tasks_logged: 2341, rating: 5.0 },
-                    { model: "gpt-4o", category: "writing", success_rate: 0.95, avg_duration: 1.2, cost_per_1k: 0.8, tasks_logged: 3421, rating: 4.5 },
-                    { model: "llama-3.3-70b", category: "cost_efficiency", success_rate: 0.92, avg_duration: 1.9, cost_per_1k: 0.15, tasks_logged: 892, rating: 4.5 },
-                    { model: "qwen-2.5-max", category: "general", success_rate: 0.94, avg_duration: 2.3, cost_per_1k: 0.3, tasks_logged: 1654, rating: 4.5 }
-                ];
+                return [];
             }
         }
 
         function renderRankings(models) {
             rankingsData = models;
             rankingsData.sort((a, b) => b.success_rate - a.success_rate);
-            
+
             const tbody = document.getElementById('rankings-body');
+
+            if (!models || models.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="loading" style="text-align:center;padding:2rem">
+                    🔄 No model data yet — tasks are being tracked. Check back soon!
+                </td></tr>`;
+                return;
+            }
+
             tbody.innerHTML = models.map(model => {
-                const stars = '⭐'.repeat(Math.floor(model.rating));
-                const category = model.category.replace('_', ' ');
-                
+                const category  = (model.category || 'general').replace('_', ' ');
+                const rate      = ((model.success_rate || 0) * 100).toFixed(0);
+                const duration  = (model.avg_duration || 0).toFixed(1);
+                // avg_cost_cents → dollars per task
+                const costUsd   = ((model.avg_cost_cents || 0) / 100);
+                const costLabel = costUsd < 0.001 ? '<$0.001' : '$' + costUsd.toFixed(4);
+                // Derive rating from success rate (0–5 scale)
+                const rating    = ((model.success_rate || 0) * 5).toFixed(1);
+                const stars     = '⭐'.repeat(Math.min(5, Math.round(model.success_rate * 5)));
+
                 return `
                     <tr>
                         <td class="model-cell">${model.model}</td>
                         <td><span class="category-badge">${category}</span></td>
-                        <td class="success-rate">${(model.success_rate * 100).toFixed(0)}%</td>
-                        <td>${model.avg_duration.toFixed(1)}s</td>
-                        <td class="cost-badge">$${model.cost_per_1k.toFixed(2)}</td>
-                        <td><span class="rating-stars">${stars}</span>${model.rating}/5</td>
-                        <td>${model.tasks_logged.toLocaleString()}</td>
+                        <td class="success-rate">${rate}%</td>
+                        <td>${duration}s</td>
+                        <td class="cost-badge">${costLabel}</td>
+                        <td><span class="rating-stars">${stars}</span>${rating}/5</td>
+                        <td>${(model.tasks_logged || 0).toLocaleString()}</td>
                     </tr>
                 `;
             }).join('');
