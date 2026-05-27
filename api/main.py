@@ -1,60 +1,59 @@
-# AgentOptima API - Main Application
+# AgentOptima API v0.3.0 — PostgreSQL persistence
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 import os
-import sqlite3
-import json
+import psycopg2
+import psycopg2.extras
 from datetime import datetime
 from pydantic import BaseModel
 
-# ── Storage ────────────────────────────────────────────────────────────────────
-# Uses SQLite at /data/agentoptima.db (Railway volume) with /app fallback.
-# Data now survives restarts and deploys.
+# ── Database connection ────────────────────────────────────────────────────────
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-DB_PATH = "/data/agentoptima.db" if os.path.isdir("/data") else "/app/agentoptima.db"
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set. Add PostgreSQL to your Railway project.")
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Return a fresh psycopg2 connection."""
+    return psycopg2.connect(DATABASE_URL)
 
 def init_db():
+    """Create tables if they don't exist."""
     with get_db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS tasks (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id     TEXT NOT NULL,
-                task_type   TEXT,
-                task_desc   TEXT,
-                model       TEXT,
-                duration_s  INTEGER,
-                cost_cents  REAL,
-                success     INTEGER,
-                notes       TEXT,
-                logged_at   TEXT
-            )
-        """)
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS tasks (
+                    id            SERIAL PRIMARY KEY,
+                    task_id       TEXT NOT NULL,
+                    task_type     TEXT,
+                    task_desc     TEXT,
+                    model         TEXT,
+                    duration_s    INTEGER,
+                    cost_cents    REAL,
+                    success       BOOLEAN,
+                    notes         TEXT,
+                    logged_at     TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
         conn.commit()
-    print(f"✅ DB ready at {DB_PATH}")
+    print(f"✅ PostgreSQL ready")
 
 # ── App lifespan ───────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 AgentOptima API starting...")
-    print(f"   DB path:        {DB_PATH}")
-    print(f"   Dashboard file: {os.path.exists('/app/dashboard.html')}")
-    print(f"   Rankings file:  {os.path.exists('/app/rankings.json')}")
-    print(f"   Port:           {os.environ.get('PORT', 8000)}")
+    print("🚀 AgentOptima API v0.3.0 starting...")
+    print(f"   Storage: PostgreSQL (Railway managed)")
+    print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
     print("🛑 AgentOptima shutdown")
 
 app = FastAPI(
     title="AgentOptima API",
     description="The self-improving intelligence network for AI agents",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan
 )
 
@@ -92,31 +91,31 @@ async def dashboard():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "0.2.0"}
+    return {"status": "healthy", "version": "0.3.0"}
 
 @app.post("/api/v1/track")
 async def track_task(request: TrackRequest):
-    """Log an agent task — persisted to SQLite."""
+    """Log an agent task — persisted to PostgreSQL."""
     try:
         with get_db() as conn:
-            conn.execute("""
-                INSERT INTO tasks
-                    (task_id, task_type, task_desc, model, duration_s,
-                     cost_cents, success, notes, logged_at)
-                VALUES (?,?,?,?,?,?,?,?,?)
-            """, (
-                request.task_id,
-                request.task_type,
-                request.task_description,
-                request.model,
-                request.duration_seconds,
-                request.cost_cents,
-                1 if request.success else 0,
-                request.notes,
-                datetime.utcnow().isoformat()
-            ))
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO tasks
+                        (task_id, task_type, task_desc, model, duration_s,
+                         cost_cents, success, notes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    request.task_id,
+                    request.task_type,
+                    request.task_description,
+                    request.model,
+                    request.duration_seconds,
+                    request.cost_cents,
+                    request.success,
+                    request.notes,
+                ))
             conn.commit()
-        print(f"💾 Logged task: {request.task_id} ({request.task_type})")
+        print(f"💾 Logged: {request.task_id} ({request.task_type}) [{request.model}]")
         return TrackResponse(
             status="success",
             message=f"Task {request.task_id} logged",
@@ -127,38 +126,46 @@ async def track_task(request: TrackRequest):
 
 @app.get("/api/v1/status")
 async def get_status():
-    """Real task counts from the DB."""
+    """Real task counts from PostgreSQL."""
     with get_db() as conn:
-        total     = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
-        success   = conn.execute("SELECT COUNT(*) FROM tasks WHERE success=1").fetchone()[0]
-        models    = conn.execute("SELECT COUNT(DISTINCT model) FROM tasks").fetchone()[0]
-        latest    = conn.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1").fetchone()
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM tasks")
+            total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM tasks WHERE success = TRUE")
+            success = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(DISTINCT model) FROM tasks")
+            models = cur.fetchone()[0]
+            cur.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1")
+            latest = cur.fetchone()
     return {
         "status": "running",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "tasks_logged": total,
         "tasks_success": success,
         "models_tracked": models,
-        "last_task_at": latest[0] if latest else None,
-        "storage": f"sqlite ({DB_PATH})"
+        "last_task_at": latest[0].isoformat() if latest else None,
+        "storage": "postgresql (Railway managed)"
     }
 
 @app.get("/api/v1/rankings")
 async def get_rankings():
-    """Live model rankings from real logged tasks."""
+    """Live model rankings aggregated from real task data."""
     with get_db() as conn:
-        rows = conn.execute("""
-            SELECT
-                model,
-                task_type                          AS category,
-                COUNT(*)                           AS tasks_logged,
-                ROUND(AVG(CASE WHEN success=1 THEN 1.0 ELSE 0.0 END), 4) AS success_rate,
-                ROUND(AVG(duration_s), 2)          AS avg_duration,
-                ROUND(AVG(cost_cents), 4)          AS avg_cost_cents
-            FROM tasks
-            GROUP BY model, task_type
-            ORDER BY success_rate DESC, tasks_logged DESC
-        """).fetchall()
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    model,
+                    task_type                                           AS category,
+                    COUNT(*)                                            AS tasks_logged,
+                    ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric, 4)
+                                                                        AS success_rate,
+                    ROUND(AVG(duration_s)::numeric, 2)                 AS avg_duration,
+                    ROUND(AVG(cost_cents)::numeric, 4)                 AS avg_cost_cents
+                FROM tasks
+                GROUP BY model, task_type
+                ORDER BY success_rate DESC, tasks_logged DESC
+            """)
+            rows = cur.fetchall()
     return {
         "generated_at": datetime.utcnow().isoformat(),
         "total_rows": len(rows),
@@ -167,11 +174,15 @@ async def get_rankings():
 
 @app.get("/api/v1/recommendations")
 async def get_recommendations():
-    """Generate insights based on real data."""
+    """Generate insights from real PostgreSQL data."""
     with get_db() as conn:
-        total   = conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0]
-        success = conn.execute("SELECT COUNT(*) FROM tasks WHERE success=1").fetchone()[0]
-        avg_dur = conn.execute("SELECT AVG(duration_s) FROM tasks").fetchone()[0] or 0
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM tasks")
+            total = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM tasks WHERE success = TRUE")
+            success = cur.fetchone()[0]
+            cur.execute("SELECT AVG(duration_s) FROM tasks")
+            avg_dur = cur.fetchone()[0] or 0
 
     recommendations = []
     if total == 0:
@@ -193,7 +204,7 @@ async def get_recommendations():
             recommendations.append({
                 "priority": "high", "category": "reliability",
                 "message": f"Success rate {rate*100:.0f}% is below 80% target.",
-                "action": "Review failure notes for recurring errors."
+                "action": "Review failure notes for recurring error patterns."
             })
         else:
             recommendations.append({
