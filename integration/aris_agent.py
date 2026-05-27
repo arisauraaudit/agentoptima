@@ -73,13 +73,14 @@ class ArisTracker:
         print(f"🚀 Starting task: {description}")
         return {"start_time": time.time(), "task_type": task_type}
     
-    def after_task(self, context, success=True, notes=None):
+    def after_task(self, context, success=True, notes=None, **kwargs):
         """Called after executing a task"""
+        # Support both old and new signatures for compatibility
         duration = int(time.time() - context["start_time"])
         
-        # Get task_type and description from context
-        task_type = context.get("task_type", "orchestrator_task")
-        description = context.get("description", "unknown")
+        # Get task_type and description from context or kwargs
+        task_type = kwargs.get("task_type", context.get("task_type", "orchestrator_task"))
+        description = kwargs.get("task_description") or kwargs.get("description") or context.get("description", "unknown")
         
         # Log to AgentOptima
         self.track_task(
