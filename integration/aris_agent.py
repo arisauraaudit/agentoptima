@@ -22,15 +22,18 @@ class ArisTracker:
         self.last_recommendations = None
     
     def track_task(self, task_type, task_description, duration_seconds=None, 
-                   cost_cents=None, success=None, notes=None):
+                   cost_cents=None, success=None, notes=None, model=None):
         """Log an Aris task to AgentOptima"""
         task_id = str(uuid.uuid4())[:8]
+        
+        # Use dynamic model if provided, otherwise use instance model
+        actual_model = model if model else self.model_name
         
         payload = {
             "task_id": task_id,
             "task_type": task_type,
             "task_description": task_description,
-            "model": self.model_name,
+            "model": actual_model,
             "duration_seconds": duration_seconds,
             "cost_cents": cost_cents,
             "success": success,
@@ -82,13 +85,20 @@ class ArisTracker:
         task_type = kwargs.get("task_type", context.get("task_type", "orchestrator_task"))
         description = kwargs.get("task_description") or kwargs.get("description") or context.get("description", "unknown")
         
+        # Extract model from notes if present (format: "Success... using <model>")
+        model = self.model_name
+        if notes and "using" in notes.lower():
+            model = notes.split("using")[-1].strip()
+        
         # Log to AgentOptima
         self.track_task(
             task_type=task_type,
             task_description=description,
             duration_seconds=duration,
+            cost_cents=None,  # TODO: add cost calculation
             success=success,
-            notes=notes
+            notes=notes,
+            model=model  # Override model to use extracted value
         )
 
 # Example usage:
