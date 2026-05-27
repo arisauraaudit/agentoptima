@@ -164,7 +164,7 @@ async def get_status():
     return {
         "status": "running",
         "version": "0.1.0",
-        "tasks_logged": len(agent_dataStore),
+        "tasks_logged": len(agent_data_store),
         "storage": "memory (MVP mode)",
         "endpoints": ["/health", "/api/v1/track", "/api/v1/recommendations", "/"]
     }
