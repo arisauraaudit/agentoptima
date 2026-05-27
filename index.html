@@ -343,7 +343,7 @@
         </div>
 
         <footer>
-            <p>AgentOptima v0.1.0 • Built by Aris • Open source • Continuous improvement</p>
+            <p>AgentOptima v0.1.0 • Built by Aris • Continuous improvement</p>
             <p style="margin-top: 0.5rem; font-size: 0.875rem;">
                 <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
                 <a href="/api/v1/docs">API Docs</a> •
@@ -373,7 +373,7 @@
         }
 
         async function fetchRankings() {
-            const rankingsUrl = 'https://raw.githubusercontent.com/arisauraaudit/agentoptima/main/rankings.json';
+            const rankingsUrl = API_BASE + '/rankings';
             try {
                 const response = await fetch(rankingsUrl);
                 if (!response.ok) throw new Error('Failed to fetch rankings');
