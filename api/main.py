@@ -107,6 +107,18 @@ async def dashboard():
 async def health():
     return {"status": "healthy", "version": "0.3.0"}
 
+@app.get("/debug/env")
+async def debug_env():
+    """Temporary: show all env variable NAMES (not values) to diagnose DB wiring."""
+    all_keys = sorted(os.environ.keys())
+    db_keys = {k: os.environ[k][:6] + "..." for k in all_keys
+               if any(x in k.upper() for x in ["POST", "DATA", "PG", "DB", "SQL", "RAILWAY"])}
+    return {
+        "all_keys": all_keys,
+        "db_related_keys_preview": db_keys,
+        "db_url_detected": bool(DATABASE_URL)
+    }
+
 @app.post("/api/v1/track")
 async def track_task(request: TrackRequest):
     """Log an agent task — persisted to PostgreSQL."""
