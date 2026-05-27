@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
 import os
+from pydantic import BaseModel
+from datetime import datetime
 
 # Application lifespan
 @asynccontextmanager
@@ -30,6 +32,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Pydantic Models (defined BEFORE functions)
+class TrackRequest(BaseModel):
+    task_id: str
+    task_type: str
+    task_description: str
+    model: str
+    duration_seconds: int = None
+    cost_cents: float = None
+    success: bool = None
+    notes: str = None
+
+class TrackResponse(BaseModel):
+    status: str
+    message: str
+    task_id: str
+
+class RecommendationsResponse(BaseModel):
+    recommendations: list
+    last_updated: str
+    summary: str
 
 # Serve dashboard HTML at root
 @app.get("/")
@@ -141,31 +164,7 @@ async def get_status():
     return {
         "status": "running",
         "version": "0.1.0",
-        "tasks_logged": len(agent_data_store),
+        "tasks_logged": len(agent_dataStore),
         "storage": "memory (MVP mode)",
         "endpoints": ["/health", "/api/v1/track", "/api/v1/recommendations", "/"]
     }
-
-# Pydantic models
-from pydantic import BaseModel
-from datetime import datetime
-
-class TrackRequest(BaseModel):
-    task_id: str
-    task_type: str
-    task_description: str
-    model: str
-    duration_seconds: int = None
-    cost_cents: float = None
-    success: bool = None
-    notes: str = None
-
-class TrackResponse(BaseModel):
-    status: str
-    message: str
-    task_id: str
-
-class RecommendationsResponse(BaseModel):
-    recommendations: list
-    last_updated: str
-    summary: str
