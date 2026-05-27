@@ -29,25 +29,28 @@ class ArisTracker:
         # Use dynamic model if provided, otherwise use instance model
         actual_model = model if model else self.model_name
         
+        # Only include fields that have values
         payload = {
             "task_id": task_id,
             "task_type": task_type,
             "task_description": task_description,
             "model": actual_model,
-            "duration_seconds": duration_seconds,
-            "cost_cents": cost_cents,
-            "success": success,
-            "notes": notes
+            "duration_seconds": duration_seconds if duration_seconds is not None else 0,
+            "cost_cents": cost_cents if cost_cents is not None else 0.0,
+            "success": success if success is not None else False,
+            "notes": notes if notes else ""
         }
         
         try:
             response = requests.post(f"{self.api_url}/track", json=payload, timeout=10)
             if response.status_code == 200:
                 print(f"✅ Task {task_id} logged to AgentOptima")
-                return {"status": "success", "task_id": task_id}
+                return {"status": "success", "task_id": task_id, "payload": payload}
             else:
                 print(f"❌ Failed to log task: {response.status_code}")
-                return {"status": "error", "code": response.status_code}
+                print(f"   Payload: {json.dumps(payload, indent=2)}")
+                print(f"   Response: {response.text}")
+                return {"status": "error", "code": response.status_code, "response": response.text}
         except Exception as e:
             print(f"❌ Error logging task: {e}")
             return {"status": "error", "error": str(e)}
