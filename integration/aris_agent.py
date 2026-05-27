@@ -77,10 +77,14 @@ class ArisTracker:
         """Called after executing a task"""
         duration = int(time.time() - context["start_time"])
         
+        # Get task_type and description from context
+        task_type = context.get("task_type", "orchestrator_task")
+        description = context.get("description", "unknown")
+        
         # Log to AgentOptima
         self.track_task(
-            task_type=context["task_type"],
-            task_description=context.get("description", "unknown"),
+            task_type=task_type,
+            task_description=description,
             duration_seconds=duration,
             success=success,
             notes=notes
