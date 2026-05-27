@@ -1,118 +1,125 @@
 #!/usr/bin/env python3
 """
-Aris Beta Agent Integration
-AgentOptima tracker for Aris task logging and recommendations
+AgentOptima tracker — logs every Aris orchestrator task to the live API.
+Designed for fire-and-forget use: failures are logged but never raise.
 """
 
 import requests
-import json
-import time
 import uuid
+import time
 from datetime import datetime
 
-# Configuration
-API_BASE_URL = "https://agentoptima.ai/api/v1"  # Updated to match endpoint structure
+API_BASE_URL = "https://agentoptima.ai/api/v1"
+
+# ── Task type classifier ───────────────────────────────────────────────────────
+_TASK_KEYWORDS = {
+    "coding":       ["code", "fix", "bug", "implement", "refactor", "deploy", "build",
+                     "script", "function", "class", "debug", "error", "test"],
+    "research":     ["research", "analyze", "compare", "benchmark", "find", "search",
+                     "investigate", "audit", "review", "check"],
+    "strategy":     ["strategy", "plan", "decide", "prioritize", "vision", "roadmap",
+                     "design", "architect", "should we", "what next", "options"],
+    "writing":      ["write", "draft", "copy", "summarize", "explain", "document",
+                     "email", "post", "message", "tweet"],
+    "data":         ["data", "database", "sql", "query", "schema", "migrate",
+                     "postgres", "sqlite", "ranking", "metrics"],
+}
+
+def classify_task(text: str) -> str:
+    text_lower = text.lower()
+    scores = {t: sum(1 for kw in kws if kw in text_lower)
+              for t, kws in _TASK_KEYWORDS.items()}
+    best = max(scores, key=scores.get)
+    return best if scores[best] > 0 else "general"
+
 
 class ArisTracker:
-    """Integrates AgentOptima API with Aris task execution"""
-    
-    def __init__(self, model_name="claude-3.5-sonnet", base_url="https://agentoptima.ai/api/v1"):
+    """Logs Aris tasks to AgentOptima with real model, cost, and token data."""
+
+    def __init__(self, model_name="anthropic/claude-sonnet-4-6",
+                 base_url=API_BASE_URL):
         self.api_url = base_url
         self.model_name = model_name
-        self.last_recommendations = None
-    
-    def track_task(self, task_type, task_description, duration_seconds=None, 
-                   cost_cents=None, success=None, notes=None, model=None):
-        """Log an Aris task to AgentOptima"""
-        task_id = str(uuid.uuid4())[:8]
-        
-        # Use dynamic model if provided, otherwise use instance model
-        actual_model = model if model else self.model_name
-        
-        # Only include fields that have values
+
+    def log(self, *, description: str, model: str = None,
+            duration_s: int = 0, cost_usd: float = 0.0,
+            input_tokens: int = 0, output_tokens: int = 0,
+            success: bool = True, notes: str = None,
+            task_type: str = None):
+        """
+        Primary logging method — call this directly after each task.
+
+        Args:
+            description:   Short task description (truncated to 200 chars)
+            model:         Actual model used (defaults to tracker default)
+            duration_s:    Wall-clock seconds
+            cost_usd:      Estimated USD cost from tiers.py estimate_cost_usd()
+            input_tokens:  Prompt tokens
+            output_tokens: Completion tokens
+            success:       Whether the task completed successfully
+            notes:         Optional free-text notes or error trace
+            task_type:     Override auto-classification
+        """
+        task_id   = str(uuid.uuid4())[:8]
+        task_type = task_type or classify_task(description)
+        model     = model or self.model_name
+        cost_cents = round(cost_usd * 100, 6)
+
+        full_notes = notes or ""
+        if input_tokens or output_tokens:
+            full_notes = f"in={input_tokens} out={output_tokens} tokens | " + full_notes
+
         payload = {
-            "task_id": task_id,
-            "task_type": task_type,
-            "task_description": task_description,
-            "model": actual_model,
-            "duration_seconds": duration_seconds if duration_seconds is not None else 0,
-            "cost_cents": cost_cents if cost_cents is not None else 0.0,
-            "success": success if success is not None else False,
-            "notes": notes if notes else ""
+            "task_id":          task_id,
+            "task_type":        task_type,
+            "task_description": description[:200],
+            "model":            model,
+            "duration_seconds": duration_s,
+            "cost_cents":       cost_cents,
+            "success":          success,
+            "notes":            full_notes.strip()
         }
-        
+
         try:
-            response = requests.post(f"{self.api_url}/track", json=payload, timeout=10)
-            if response.status_code == 200:
-                print(f"✅ Task {task_id} logged to AgentOptima")
-                return {"status": "success", "task_id": task_id, "payload": payload}
+            r = requests.post(f"{self.api_url}/track", json=payload, timeout=8)
+            if r.status_code == 200:
+                print(f"⚡ AgentOptima logged [{task_type}] {task_id} "
+                      f"({model}, {duration_s}s, ${cost_usd:.4f})")
             else:
-                print(f"❌ Failed to log task: {response.status_code}")
-                print(f"   Payload: {json.dumps(payload, indent=2)}")
-                print(f"   Response: {response.text}")
-                return {"status": "error", "code": response.status_code, "response": response.text}
+                print(f"⚠️  AgentOptima log failed {r.status_code}: {r.text[:100]}")
         except Exception as e:
-            print(f"❌ Error logging task: {e}")
-            return {"status": "error", "error": str(e)}
-    
-    def get_recommendations(self):
-        """Fetch performance recommendations from AgentOptima"""
-        try:
-            if self.last_recommendations:
-                return self.last_recommendations
-            
-            response = requests.get(f"{self.api_url}/recommendations", timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                self.last_recommendations = data
-                print(f"💡 Recommendations loaded: {data['summary']}")
-                return data
-            else:
-                print(f"❌ Failed to fetch recommendations: {response.status_code}")
-                return None
-        except Exception as e:
-            print(f"❌ Error fetching recommendations: {e}")
-            return {}
-    
+            # Never block the orchestrator — just warn
+            print(f"⚠️  AgentOptima unreachable: {e}")
+
+        return task_id
+
+    # ── Legacy compatibility ───────────────────────────────────────────────────
     def before_task(self, task_type, description):
-        """Called before executing a task"""
-        print(f"🚀 Starting task: {description}")
-        return {"start_time": time.time(), "task_type": task_type}
-    
+        return {"start_time": time.time(), "task_type": task_type,
+                "description": description}
+
     def after_task(self, context, success=True, notes=None, **kwargs):
-        """Called after executing a task"""
-        # Support both old and new signatures for compatibility
-        duration = int(time.time() - context["start_time"])
-        
-        # Get task_type and description from context or kwargs
-        task_type = kwargs.get("task_type", context.get("task_type", "orchestrator_task"))
-        description = kwargs.get("task_description") or kwargs.get("description") or context.get("description", "unknown")
-        
-        # Extract model from notes if present (format: "Success... using <model>")
-        model = self.model_name
-        if notes and "using" in notes.lower():
-            model = notes.split("using")[-1].strip()
-        
-        # Log to AgentOptima
-        self.track_task(
-            task_type=task_type,
-            task_description=description,
-            duration_seconds=duration,
-            cost_cents=None,  # TODO: add cost calculation
+        """Legacy wrapper — kept for backward compatibility."""
+        duration = int(time.time() - context.get("start_time", time.time()))
+        desc = (kwargs.get("task_description")
+                or context.get("description", "unknown task"))
+        self.log(
+            description=desc,
+            duration_s=duration,
             success=success,
             notes=notes,
-            model=model  # Override model to use extracted value
+            task_type=context.get("task_type"),
         )
 
-# Example usage:
-if __name__ == "__main__":
-    tracker = ArisTracker()
-    
-    # Track a sample task
-    context = tracker.before_task("deployment", "Test deployment workflow")
-    time.sleep(2)  # Simulate work
-    tracker.after_task(context, success=True, notes="Test completed")
-    
-    # Get recommendations
-    recs = tracker.get_recommendations()
-    print(json.dumps(recs, indent=2))
+    def track_task(self, task_type, task_description, duration_seconds=0,
+                   cost_cents=0.0, success=True, notes=None, model=None):
+        """Legacy wrapper — kept for backward compatibility."""
+        self.log(
+            description=task_description,
+            model=model,
+            duration_s=duration_seconds or 0,
+            cost_usd=(cost_cents or 0) / 100,
+            success=success,
+            notes=notes,
+            task_type=task_type,
+        )
