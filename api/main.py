@@ -10,35 +10,40 @@ from datetime import datetime
 from pydantic import BaseModel
 
 # ── Database connection ────────────────────────────────────────────────────────
-DATABASE_URL = os.environ.get("DATABASE_URL")
+_raw_url = os.environ.get("DATABASE_URL", "")
 
-if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL environment variable is not set. Add PostgreSQL to your Railway project.")
+# Railway injects postgres:// but psycopg2 requires postgresql://
+DATABASE_URL = _raw_url.replace("postgres://", "postgresql://", 1) if _raw_url else None
 
 def get_db():
     """Return a fresh psycopg2 connection."""
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL not set — add PostgreSQL service to Railway project")
     return psycopg2.connect(DATABASE_URL)
 
 def init_db():
     """Create tables if they don't exist."""
-    with get_db() as conn:
-        with conn.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id            SERIAL PRIMARY KEY,
-                    task_id       TEXT NOT NULL,
-                    task_type     TEXT,
-                    task_desc     TEXT,
-                    model         TEXT,
-                    duration_s    INTEGER,
-                    cost_cents    REAL,
-                    success       BOOLEAN,
-                    notes         TEXT,
-                    logged_at     TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-        conn.commit()
-    print(f"✅ PostgreSQL ready")
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS tasks (
+                        id            SERIAL PRIMARY KEY,
+                        task_id       TEXT NOT NULL,
+                        task_type     TEXT,
+                        task_desc     TEXT,
+                        model         TEXT,
+                        duration_s    INTEGER,
+                        cost_cents    REAL,
+                        success       BOOLEAN,
+                        notes         TEXT,
+                        logged_at     TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+            conn.commit()
+        print("✅ PostgreSQL ready")
+    except Exception as e:
+        print(f"⚠️  DB init warning (will retry on first request): {e}")
 
 # ── App lifespan ───────────────────────────────────────────────────────────────
 @asynccontextmanager
