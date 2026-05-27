@@ -10,19 +10,21 @@ from datetime import datetime
 from pydantic import BaseModel
 
 # ── Database connection ────────────────────────────────────────────────────────
-# Railway may use any of these names
+# Strip whitespace from all env keys before lookup (handles Railway leading-space bug)
+_clean_env = {k.strip(): v for k, v in os.environ.items()}
+
 _raw_url = (
-    os.environ.get("DATABASE_URL")
-    or os.environ.get("POSTGRES_URL")
-    or os.environ.get("POSTGRESQL_URL")
-    or os.environ.get("DATABASE_PRIVATE_URL")
+    _clean_env.get("DATABASE_URL")
+    or _clean_env.get("POSTGRES_URL")
+    or _clean_env.get("POSTGRESQL_URL")
+    or _clean_env.get("DATABASE_PRIVATE_URL")
     or ""
 )
 
 # Railway injects postgres:// but psycopg2 requires postgresql://
 DATABASE_URL = _raw_url.replace("postgres://", "postgresql://", 1) if _raw_url else None
-print(f"🔍 DB URL detected: {'YES ('+_raw_url[:20]+'...)' if _raw_url else 'NO — not found in env'}")
-print(f"🔍 Env keys available: {[k for k in os.environ if 'POST' in k.upper() or 'DATA' in k.upper() or 'PG' in k.upper() or 'DB' in k.upper()]}")
+print(f"🔍 DB URL detected: {'YES (' + _raw_url[:20] + '...)' if _raw_url else 'NO — not found in env'}")
+print(f"🔍 Env keys (stripped): {sorted(_clean_env.keys())}")
 
 def get_db():
     """Return a fresh psycopg2 connection."""
