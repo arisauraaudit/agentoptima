@@ -256,7 +256,7 @@ async def get_rankings():
 async def get_progress():
     """Per-model, per-category task counts vs target (10) for data-driven routing."""
     TARGET = 10
-    CATEGORIES = ["coding", "research", "strategy", "writing", "data", "general"]
+    CATEGORIES = ["coding", "research", "strategy", "writing", "data", "general", "security", "math"]
     MODEL_POOL  = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
                    "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
                    "google/gemini-2.0-flash-001"]
