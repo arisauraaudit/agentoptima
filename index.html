@@ -470,7 +470,7 @@
                         ${(model.success_rate * 100).toFixed(0)}% success
                     </div>
                     <div style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem;">
-                        ${model.rating}⭐
+                        ${'⭐'.repeat(Math.min(5, Math.round((model.success_rate||0) * 5)))}
                     </div>
                 </div>
             `).join('');
@@ -532,9 +532,11 @@
             }
         }
 
-        // Initialize
-        refresh();
-        
+        // Initialize with retry on first load (handles Railway wake-up delay)
+        refresh().catch(() => {
+            setTimeout(() => refresh(), 3000);
+        });
+
         // Auto-refresh every 30 seconds
         setInterval(refresh, 30000);
         
