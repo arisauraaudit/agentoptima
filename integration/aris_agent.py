@@ -9,7 +9,8 @@ import uuid
 import time
 from datetime import datetime
 
-API_BASE_URL = "https://agentoptima.ai/api/v1"
+API_BASE_URL  = "https://agentoptima.ai/api/v1"
+ARIS_API_KEY  = "ao-41727e957d734ef638903180293af0d6171efda7373902e6"
 
 # ── Task type classifier ───────────────────────────────────────────────────────
 _TASK_KEYWORDS = {
@@ -37,9 +38,11 @@ class ArisTracker:
     """Logs Aris tasks to AgentOptima with real model, cost, and token data."""
 
     def __init__(self, model_name="anthropic/claude-sonnet-4-6",
-                 base_url=API_BASE_URL):
-        self.api_url = base_url
+                 base_url=API_BASE_URL, api_key=ARIS_API_KEY):
+        self.api_url  = base_url
         self.model_name = model_name
+        self.api_key  = api_key
+        self.headers  = {"X-API-Key": api_key} if api_key else {}
 
     def log(self, *, description: str, model: str = None,
             duration_s: int = 0, cost_usd: float = 0.0,
@@ -81,7 +84,8 @@ class ArisTracker:
         }
 
         try:
-            r = requests.post(f"{self.api_url}/track", json=payload, timeout=8)
+            r = requests.post(f"{self.api_url}/track", json=payload,
+                              headers=self.headers, timeout=8)
             if r.status_code == 200:
                 print(f"⚡ AgentOptima logged [{task_type}] {task_id} "
                       f"({model}, {duration_s}s, ${cost_usd:.4f})")

@@ -326,6 +326,12 @@
             </div>
         </div>
 
+        <div class="section" id="progress-section">
+            <h2 class="section-title">Data-Driven Routing Progress</h2>
+            <p style="color:#94a3b8;margin-bottom:1.5rem;font-size:0.95rem">Each model needs 10 tasks per category before AgentOptima switches from round-robin to data-driven routing. <span id="overall-pct" style="color:#10b981;font-weight:600"></span></p>
+            <div id="progress-grid" style="display:grid;gap:1rem"></div>
+        </div>
+
         <div class="section">
             <h2 class="section-title">AI Recommendations</h2>
             <div class="recommendations-panel" id="recommendations-panel">
@@ -530,7 +536,43 @@
                 console.error('Feed render failed:', e);
             }
 
+            // -- Step 5: Progress indicator (non-critical)
+            try {
+                const prog = await fetchAPI('/progress');
+                renderProgress(prog);
+            } catch(e) { console.error('Progress failed:', e); }
+
             lastRefresh = new Date();
+        }
+
+        function renderProgress(data) {
+            document.getElementById('overall-pct').textContent =
+                data.overall_pct + '% overall complete';
+            const grid = document.getElementById('progress-grid');
+            const shortName = m => m.split('/').pop().replace('-preview','');
+            grid.innerHTML = data.models.map(m => {
+                const bars = data.categories.map(cat => {
+                    const count = m.categories[cat] || 0;
+                    const pct   = Math.min(100, (count / data.target_per_category) * 100);
+                    const done  = count >= data.target_per_category;
+                    const color = done ? '#10b981' : pct > 50 ? '#f59e0b' : '#3b82f6';
+                    return `<div style="margin-bottom:0.4rem">
+                        <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#94a3b8;margin-bottom:2px">
+                            <span>${cat}</span><span style="color:${color}">${count}/${data.target_per_category}</span>
+                        </div>
+                        <div style="background:rgba(148,163,184,0.15);border-radius:4px;height:6px">
+                            <div style="width:${pct}%;background:${color};border-radius:4px;height:6px;transition:width 0.5s"></div>
+                        </div>
+                    </div>`;
+                }).join('');
+                return `<div style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.2);border-radius:12px;padding:1.25rem">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+                        <span style="font-weight:600;color:#f1f5f9;font-size:0.9rem">${shortName(m.model)}</span>
+                        <span style="font-size:0.8rem;color:#64748b">${m.data_driven_categories}/${m.total_categories} categories ready</span>
+                    </div>
+                    ${bars}
+                </div>`;
+            }).join('');
         }
 
         // Initialize
