@@ -221,6 +221,43 @@ async def get_progress():
     return {"target_per_category": TARGET, "categories": CATEGORIES,
             "models": result, "overall_pct": overall}
 
+@app.get("/api/v1/tasks/recent")
+async def get_recent_tasks(limit: int = 20):
+    """Live feed of most recent tasks across all agents and models."""
+    limit = max(1, min(limit, 100))  # cap at 100
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, task_id, task_type, task_desc, model,
+                       duration_s, cost_cents, success, notes, agent_name,
+                       logged_at
+                FROM tasks
+                ORDER BY id DESC
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+    return {
+        "count": len(rows),
+        "limit": limit,
+        "tasks": [
+            {
+                "id":         r["id"],
+                "task_id":    r["task_id"],
+                "task_type":  r["task_type"],
+                "task_desc":  r["task_desc"],
+                "model":      r["model"],
+                "model_short": r["model"].split("/")[-1] if r["model"] else "",
+                "duration_s": r["duration_s"],
+                "cost_cents": float(r["cost_cents"]) if r["cost_cents"] is not None else None,
+                "success":    r["success"],
+                "agent_name": r["agent_name"],
+                "logged_at":  r["logged_at"].isoformat() if r["logged_at"] else None,
+            }
+            for r in rows
+        ]
+    }
+
+
 @app.get("/api/v1/recommend")
 async def get_recommendation(task_type: str = "general", min_tasks: int = 10):
     MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
