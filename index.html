@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgentOptima — Live Model Rankings</title>
+    <title>AgentOptima -- Live Model Rankings</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -398,7 +398,7 @@
 
             if (!models || models.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="6" class="loading" style="text-align:center;padding:2rem">
-                    🔄 No model data yet — tasks are being tracked. Check back soon!
+                     No model data yet -- tasks are being tracked. Check back soon!
                 </td></tr>`;
                 return;
             }
@@ -407,12 +407,12 @@
                 const category  = (model.category || 'general').replace('_', ' ');
                 const rate      = ((model.success_rate || 0) * 100).toFixed(0);
                 const duration  = (model.avg_duration || 0).toFixed(1);
-                // avg_cost_cents → dollars per task
+                // avg_cost_cents -> dollars per task
                 const costUsd   = ((model.avg_cost_cents || 0) / 100);
                 const costLabel = costUsd < 0.001 ? '<$0.001' : '$' + costUsd.toFixed(4);
-                // Derive rating from success rate (0–5 scale)
+                // Derive rating from success rate (0-5 scale)
                 const rating    = ((model.success_rate || 0) * 5).toFixed(1);
-                const stars     = '⭐'.repeat(Math.min(5, Math.round(model.success_rate * 5)));
+                const stars     = '★'.repeat(Math.min(5, Math.round(model.success_rate * 5)));
 
                 return `
                     <tr>
@@ -438,7 +438,7 @@
             
             container.innerHTML = recs.recommendations.map(rec => {
                 const prioClass = `prio-${rec.priority}`;
-                const actionText = rec.action ? `<div class="rec-action">→ ${rec.action}</div>` : '';
+                const actionText = rec.action ? `<div class="rec-action">-> ${rec.action}</div>` : '';
                 
                 return `
                     <div class="recommendation-item">
@@ -453,7 +453,7 @@
         function renderPerformanceFeed() {
             const container = document.getElementById('performance-feed');
 
-            // Deduplicate by model name — pick best success_rate row per model
+            // Deduplicate by model name -- pick best success_rate row per model
             const seen = {};
             rankingsData.forEach(m => {
                 if (!seen[m.model] || m.success_rate > seen[m.model].success_rate) {
@@ -470,7 +470,7 @@
                         ${(model.success_rate * 100).toFixed(0)}% success
                     </div>
                     <div style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem;">
-                        ${'⭐'.repeat(Math.min(5, Math.round((model.success_rate||0) * 5)))}
+                        ${'★'.repeat(Math.min(5, Math.round((model.success_rate||0) * 5)))}
                     </div>
                 </div>
             `).join('');
@@ -481,7 +481,7 @@
             const existing = document.querySelector('.error-banner');
             if (existing) existing.remove();
 
-            // ── Step 1: Status (critical) ─────────────────────────────────
+            // -- Step 1: Status (critical)
             let status = null;
             try {
                 status = await fetchAPI('/status');
@@ -502,18 +502,18 @@
                 return;
             }
 
-            // ── Step 2: Rankings (non-critical) ──────────────────────────
+            // -- Step 2: Rankings (non-critical)
             try {
                 rankingsData = await fetchRankings();
                 renderRankings(rankingsData);
                 const uniqueModels = new Set(rankingsData.map(m => m.model)).size;
-                document.getElementById('models-count').textContent = uniqueModels || status.models_tracked || '–';
+                document.getElementById('models-count').textContent = uniqueModels || status.models_tracked || '-';
             } catch (e) {
                 console.error('Rankings failed:', e);
-                document.getElementById('models-count').textContent = status.models_tracked || '–';
+                document.getElementById('models-count').textContent = status.models_tracked || '-';
             }
 
-            // ── Step 3: Recommendations (non-critical) ────────────────────
+            // -- Step 3: Recommendations (non-critical)
             try {
                 const recommendations = await fetchAPI('/recommendations');
                 renderRecommendations(recommendations);
@@ -523,7 +523,7 @@
                     '<p class="loading">Recommendations loading...</p>';
             }
 
-            // ── Step 4: Performance feed (non-critical) ───────────────────
+            // -- Step 4: Performance feed (non-critical)
             try {
                 renderPerformanceFeed();
             } catch (e) {
