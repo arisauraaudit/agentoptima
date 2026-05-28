@@ -66,6 +66,10 @@ def init_db():
                     VALUES (%s, 'aris')
                     ON CONFLICT (key_hash) DO NOTHING
                 """, (master_hash,))
+                # Migration: add agent_name column if missing
+                cur.execute("""
+                    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS agent_name TEXT DEFAULT 'aris'
+                """)
             conn.commit()
         print("✅ PostgreSQL ready (v0.4.0)")
     except Exception as e:
