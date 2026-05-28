@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
-import os, hashlib, psycopg2, psycopg2.extras
+import os, hashlib, secrets, re, psycopg2, psycopg2.extras
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
@@ -66,9 +66,15 @@ def init_db():
                     VALUES (%s, 'aris')
                     ON CONFLICT (key_hash) DO NOTHING
                 """, (master_hash,))
-                # Migration: add agent_name column if missing
+                # Migrations
                 cur.execute("""
                     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS agent_name TEXT DEFAULT 'aris'
+                """)
+                cur.execute("""
+                    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS output_text TEXT
+                """)
+                cur.execute("""
+                    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS quality_score REAL
                 """)
             conn.commit()
         print("✅ PostgreSQL ready (v0.4.0)")
@@ -105,6 +111,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 # ── Models ─────────────────────────────────────────────────────────────────────
+class RegisterRequest(BaseModel):
+    agent_name: str
+
 class TrackRequest(BaseModel):
     task_id: str
     task_type: str
@@ -114,6 +123,8 @@ class TrackRequest(BaseModel):
     cost_cents: Optional[float]      = None
     success: Optional[bool]          = None
     notes: Optional[str]             = None
+    output_text: Optional[str]       = None
+    quality_score: Optional[float]   = None
 
 # ── Public endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
@@ -122,6 +133,54 @@ async def dashboard():
         if os.path.exists(path):
             return FileResponse(path, media_type="text/html")
     return JSONResponse({"error": "Dashboard not found"}, status_code=500)
+
+@app.post("/api/v1/register")
+async def register_agent(request: RegisterRequest):
+    """Public endpoint — register a new agent and receive an API key."""
+    # Validate agent_name: alphanumeric + hyphens, 3-32 chars
+    if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9\-]{1,30}[a-zA-Z0-9]', request.agent_name) \
+            and not re.fullmatch(r'[a-zA-Z0-9]{3,32}', request.agent_name):
+        raise HTTPException(
+            status_code=422,
+            detail="agent_name must be 3-32 characters, alphanumeric and hyphens only"
+        )
+    if len(request.agent_name) < 3 or len(request.agent_name) > 32:
+        raise HTTPException(
+            status_code=422,
+            detail="agent_name must be between 3 and 32 characters"
+        )
+    # Generate secure API key
+    api_key  = "ao-" + secrets.token_hex(24)
+    key_hash = hashlib.sha256(api_key.encode()).hexdigest()
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                # Check name uniqueness
+                cur.execute(
+                    "SELECT id FROM api_keys WHERE agent_name=%s AND active=TRUE",
+                    (request.agent_name,)
+                )
+                if cur.fetchone():
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"Agent name '{request.agent_name}' is already taken"
+                    )
+                cur.execute(
+                    "INSERT INTO api_keys (key_hash, agent_name) VALUES (%s, %s)",
+                    (key_hash, request.agent_name)
+                )
+            conn.commit()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Register error: {e}")
+        raise HTTPException(status_code=500, detail="Registration failed — please try again")
+    print(f"🎉 New agent registered: {request.agent_name}")
+    return {
+        "api_key":    api_key,
+        "agent_name": request.agent_name,
+        "message":    "Welcome to AgentOptima"
+    }
 
 @app.get("/health")
 async def health():
@@ -230,7 +289,7 @@ async def get_recent_tasks(limit: int = 20):
             cur.execute("""
                 SELECT id, task_id, task_type, task_desc, model,
                        duration_s, cost_cents, success, notes, agent_name,
-                       logged_at
+                       quality_score, logged_at
                 FROM tasks
                 ORDER BY id DESC
                 LIMIT %s
@@ -249,9 +308,10 @@ async def get_recent_tasks(limit: int = 20):
                 "model_short": r["model"].split("/")[-1] if r["model"] else "",
                 "duration_s": r["duration_s"],
                 "cost_cents": float(r["cost_cents"]) if r["cost_cents"] is not None else None,
-                "success":    r["success"],
-                "agent_name": r["agent_name"],
-                "logged_at":  r["logged_at"].isoformat() if r["logged_at"] else None,
+                "success":      r["success"],
+                "quality_score": float(r["quality_score"]) if r["quality_score"] is not None else None,
+                "agent_name":   r["agent_name"],
+                "logged_at":    r["logged_at"].isoformat() if r["logged_at"] else None,
             }
             for r in rows
         ]
@@ -332,11 +392,12 @@ async def track_task(request: TrackRequest,
             cur.execute("""
                 INSERT INTO tasks
                     (task_id, task_type, task_desc, model, duration_s,
-                     cost_cents, success, notes, agent_name)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     cost_cents, success, notes, agent_name, output_text, quality_score)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (request.task_id, request.task_type, request.task_description,
                   request.model, request.duration_seconds, request.cost_cents,
-                  request.success, request.notes, agent_name))
+                  request.success, request.notes, agent_name,
+                  request.output_text, request.quality_score))
         conn.commit()
     print(f"💾 [{agent_name}] {request.task_id} ({request.task_type}) [{request.model}]")
     return {"status": "success", "message": f"Task {request.task_id} logged",
