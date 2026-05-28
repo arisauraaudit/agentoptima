@@ -52,6 +52,18 @@ def init_db():
                     )
                 """)
             conn.commit()
+        # Human feedback ratings table (Layer 4 — reward signal)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS feedback (
+                    id          SERIAL PRIMARY KEY,
+                    task_id     TEXT NOT NULL,
+                    rating      INTEGER CHECK (rating BETWEEN 1 AND 5),
+                    label       TEXT,
+                    notes       TEXT,
+                    rated_at    TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+        conn.commit()
         print("✅ PostgreSQL ready")
     except Exception as e:
         print(f"⚠️  DB init warning (will retry on first request): {e}")
@@ -188,6 +200,44 @@ async def get_rankings():
         "generated_at": datetime.utcnow().isoformat(),
         "total_rows": len(rows),
         "models": [dict(r) for r in rows]
+    }
+
+@app.get("/api/v1/models")
+async def get_models():
+    """List all models in the AgentOptima test pool with live stats."""
+    MODEL_POOL = [
+        "anthropic/claude-sonnet-4-6",
+        "anthropic/claude-3-haiku",
+        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-v4-flash:free",
+        "openai/gpt-4o-mini",
+    ]
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT model,
+                    COUNT(*)                                                       AS tasks_logged,
+                    ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
+                    ROUND(AVG(duration_s)::numeric, 2)                             AS avg_duration_s,
+                    ROUND(AVG(cost_cents)::numeric, 4)                             AS avg_cost_cents
+                FROM tasks
+                GROUP BY model
+            """)
+            rows = {r['model']: dict(r) for r in cur.fetchall()}
+
+    return {
+        "pool_size": len(MODEL_POOL),
+        "models": [
+            {
+                "model": m,
+                "in_pool": True,
+                "tasks_logged":   rows[m]['tasks_logged']   if m in rows else 0,
+                "success_rate":   rows[m]['success_rate']   if m in rows else None,
+                "avg_duration_s": rows[m]['avg_duration_s'] if m in rows else None,
+                "avg_cost_cents": rows[m]['avg_cost_cents'] if m in rows else None,
+            }
+            for m in MODEL_POOL
+        ]
     }
 
 @app.get("/api/v1/recommend")
