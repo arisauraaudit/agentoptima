@@ -190,6 +190,59 @@ async def get_rankings():
         "models": [dict(r) for r in rows]
     }
 
+@app.get("/api/v1/recommend")
+async def get_recommendation(task_type: str = "general", min_tasks: int = 10):
+    """
+    Return the best model for a given task type based on real performance data.
+    Falls back to round-robin pool when insufficient data exists.
+    """
+    MODEL_POOL = [
+        "anthropic/claude-sonnet-4-6",
+        "anthropic/claude-3-haiku-20240307",
+        "deepseek/deepseek-v4-flash",
+        "deepseek/deepseek-v4-flash:free",
+        "openai/gpt-4o-mini",
+    ]
+
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    model,
+                    COUNT(*)                                                      AS tasks,
+                    AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)                  AS success_rate,
+                    AVG(duration_s)                                               AS avg_duration,
+                    AVG(cost_cents)                                               AS avg_cost_cents
+                FROM tasks
+                WHERE task_type = %s
+                GROUP BY model
+                HAVING COUNT(*) >= %s
+                ORDER BY
+                    AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
+                    AVG(cost_cents) ASC
+            """, (task_type, min_tasks))
+            rows = cur.fetchall()
+
+    if not rows:
+        return {
+            "mode": "round-robin",
+            "reason": f"insufficient_data (need {min_tasks}+ tasks per model for '{task_type}')",
+            "recommended_model": None,
+            "pool": MODEL_POOL,
+        }
+
+    best = dict(rows[0])
+    return {
+        "mode": "data-driven",
+        "task_type": task_type,
+        "recommended_model": best["model"],
+        "success_rate": round(float(best["success_rate"]), 4),
+        "avg_cost_cents": round(float(best["avg_cost_cents"]), 4),
+        "avg_duration_s": round(float(best["avg_duration"]), 1),
+        "based_on_tasks": int(best["tasks"]),
+        "all_candidates": [dict(r) for r in rows],
+    }
+
 @app.get("/api/v1/recommendations")
 async def get_recommendations():
     """Generate insights from real PostgreSQL data."""
