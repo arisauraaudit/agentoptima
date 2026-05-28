@@ -161,6 +161,9 @@
             font-weight: 600;
         }
         
+        .hidden-cats { display: none; }
+        .chevron.open { transform: rotate(180deg); }
+
         .recommendations-panel {
             background: rgba(30, 41, 59, 0.8);
             border: 1px solid rgba(148, 163, 184, 0.2);
@@ -306,24 +309,10 @@
 
         <div class="section">
             <h2 class="section-title">Live Model Rankings</h2>
-            <table class="rankings-table" id="rankings-table">
-                <thead>
-                    <tr>
-                        <th>Model</th>
-                        <th>Category</th>
-                        <th>Success Rate</th>
-                        <th>Avg Duration</th>
-                        <th>Avg Cost/Task</th>
-                        <th>Rating</th>
-                        <th>Tasks Logged</th>
-                    </tr>
-                </thead>
-                <tbody id="rankings-body">
-                    <tr>
-                        <td colspan="7" class="loading">Loading rankings...</td>
-                    </tr>
-                </tbody>
-            </table>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem">Click any model to expand per-category breakdown.</p>
+            <div id="rankings-accordion">
+                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading rankings…</div>
+            </div>
         </div>
 
         <div class="section" id="progress-section">
@@ -402,43 +391,87 @@
 
         function renderRankings(models) {
             rankingsData = models;
-            // Group by model name, then sort within group by success_rate
-            rankingsData.sort((a, b) => {
-                if (a.model !== b.model) return a.model.localeCompare(b.model);
-                return b.success_rate - a.success_rate;
-            });
-
-            const tbody = document.getElementById('rankings-body');
+            const container = document.getElementById('rankings-accordion');
 
             if (!models || models.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="loading" style="text-align:center;padding:2rem">
-                     No model data yet -- tasks are being tracked. Check back soon!
-                </td></tr>`;
+                container.innerHTML = '<div style="color:#64748b;padding:2rem;text-align:center">No model data yet — run the batch runner to start building data.</div>';
                 return;
             }
 
-            tbody.innerHTML = models.map(model => {
-                const category  = (model.category || 'general').replace('_', ' ');
-                const rate      = ((model.success_rate || 0) * 100).toFixed(0);
-                const duration  = (model.avg_duration || 0).toFixed(1);
-                // avg_cost_cents -> dollars per task
-                const costUsd   = ((model.avg_cost_cents || 0) / 100);
-                const costLabel = costUsd < 0.001 ? '<$0.001' : '$' + costUsd.toFixed(4);
-                // Derive rating from success rate (0-5 scale)
-                const rating    = ((model.success_rate || 0) * 5).toFixed(1);
-                const stars     = '★'.repeat(Math.min(5, Math.round(model.success_rate * 5)));
+            // Group rows by model
+            const grouped = {};
+            models.forEach(m => {
+                if (!grouped[m.model]) grouped[m.model] = [];
+                grouped[m.model].push(m);
+            });
+
+            // Sort models by overall success rate desc
+            const modelList = Object.keys(grouped).sort((a, b) => {
+                const avgA = grouped[a].reduce((s,r) => s + (r.success_rate||0), 0) / grouped[a].length;
+                const avgB = grouped[b].reduce((s,r) => s + (r.success_rate||0), 0) / grouped[b].length;
+                return avgB - avgA;
+            });
+
+            const catColour = {
+                coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
+                writing:'#ec4899', data:'#10b981', general:'#64748b'
+            };
+
+            container.innerHTML = modelList.map((modelId, idx) => {
+                const rows   = grouped[modelId];
+                const total  = rows.reduce((s,r) => s + (r.tasks_logged||0), 0);
+                const avgRate = rows.reduce((s,r) => s + (r.success_rate||0), 0) / rows.length;
+                const avgCost = rows.reduce((s,r) => s + (r.avg_cost_cents||0), 0) / rows.length;
+                const avgDur  = rows.reduce((s,r) => s + (r.avg_duration||0), 0) / rows.length;
+                const stars   = '★'.repeat(Math.min(5, Math.round(avgRate * 5)));
+                const rateLabel = (avgRate * 100).toFixed(0) + '%';
+                const rateColour = avgRate >= 0.9 ? '#10b981' : avgRate >= 0.6 ? '#f59e0b' : '#ef4444';
+                const costLabel = avgCost < 0.1 ? '<$0.001' : '$' + (avgCost/100).toFixed(4);
+                const shortName = modelId.split('/').pop();
+                const providerTag = modelId.startsWith('anthropic') ? '🟣' :
+                                    modelId.startsWith('openai')    ? '🟢' :
+                                    modelId.startsWith('deepseek')  ? '🔵' :
+                                    modelId.startsWith('google')    ? '🔴' : '⚪';
+
+                const catRows = rows
+                    .sort((a,b) => (b.tasks_logged||0) - (a.tasks_logged||0))
+                    .map(r => {
+                        const c     = r.category || 'general';
+                        const col   = catColour[c] || '#64748b';
+                        const cRate = ((r.success_rate||0)*100).toFixed(0);
+                        const cCost = (r.avg_cost_cents||0) < 0.1 ? '<$0.001' : '$' + ((r.avg_cost_cents||0)/100).toFixed(4);
+                        return `
+                        <div style="display:grid;grid-template-columns:9rem 4rem 6rem 7rem 4rem;gap:0.5rem;align-items:center;padding:0.6rem 1.5rem;border-top:1px solid rgba(148,163,184,0.08);font-size:0.82rem">
+                            <span style="background:rgba(0,0,0,0.25);color:${col};padding:3px 10px;border-radius:20px;font-weight:600;display:inline-block;text-align:center">${c}</span>
+                            <span style="color:${(r.success_rate||0)>=0.9?'#10b981':'#f59e0b'};font-weight:600">${cRate}%</span>
+                            <span style="color:#94a3b8">${(r.avg_duration||0).toFixed(1)}s avg</span>
+                            <span style="color:#f59e0b">${cCost}/task</span>
+                            <span style="color:#64748b">${r.tasks_logged||0} tasks</span>
+                        </div>`;
+                    }).join('');
 
                 return `
-                    <tr>
-                        <td class="model-cell">${model.model}</td>
-                        <td><span class="category-badge">${category}</span></td>
-                        <td class="success-rate">${rate}%</td>
-                        <td>${duration}s</td>
-                        <td class="cost-badge">${costLabel}</td>
-                        <td><span class="rating-stars">${stars}</span>${rating}/5</td>
-                        <td>${(model.tasks_logged || 0).toLocaleString()}</td>
-                    </tr>
-                `;
+                <div style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.15);border-radius:14px;margin-bottom:0.75rem;overflow:hidden">
+                    <div onclick="this.parentElement.querySelector('.cat-detail').classList.toggle('hidden-cats');this.querySelector('.chevron').classList.toggle('open')"
+                         style="display:grid;grid-template-columns:1fr 5rem 6rem 7rem 5rem 2rem;gap:0.75rem;align-items:center;padding:1.1rem 1.5rem;cursor:pointer;transition:background 0.2s"
+                         onmouseover="this.style.background='rgba(16,185,129,0.06)'" onmouseout="this.style.background=''">
+                        <div>
+                            <span style="font-size:0.95rem;font-weight:700;color:#f1f5f9">${providerTag} ${shortName}</span>
+                            <span style="font-size:0.75rem;color:#475569;margin-left:0.5rem">${rows.length} categories</span>
+                        </div>
+                        <span style="color:${rateColour};font-weight:700;font-size:1rem">${rateLabel}</span>
+                        <span style="color:#94a3b8;font-size:0.875rem">${avgDur.toFixed(1)}s avg</span>
+                        <span style="color:#f59e0b;font-weight:600;font-size:0.875rem">${costLabel}/task</span>
+                        <span style="color:#64748b;font-size:0.875rem">${total} tasks</span>
+                        <span class="chevron" style="color:#475569;font-size:0.8rem;transition:transform 0.2s;display:inline-block">▼</span>
+                    </div>
+                    <div class="cat-detail hidden-cats">
+                        <div style="display:grid;grid-template-columns:9rem 4rem 6rem 7rem 4rem;gap:0.5rem;padding:0.5rem 1.5rem;font-size:0.75rem;color:#475569;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">
+                            <span>Category</span><span>Success</span><span>Duration</span><span>Cost</span><span>Tasks</span>
+                        </div>
+                        ${catRows}
+                    </div>
+                </div>`;
             }).join('');
         }
 
