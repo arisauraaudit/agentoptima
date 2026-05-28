@@ -198,7 +198,7 @@ async def get_recommendation(task_type: str = "general", min_tasks: int = 10):
     """
     MODEL_POOL = [
         "anthropic/claude-sonnet-4-6",
-        "anthropic/claude-3-haiku-20240307",
+        "anthropic/claude-3-haiku",
         "deepseek/deepseek-v4-flash",
         "deepseek/deepseek-v4-flash:free",
         "openai/gpt-4o-mini",
