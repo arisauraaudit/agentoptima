@@ -162,6 +162,9 @@
         }
         
         .hidden-cats { display: none; }
+        @media (max-width: 640px) {
+            .feed-col-agent { display: none; }
+        }
         .chevron.open { transform: rotate(180deg); }
 
         /* ── Rankings responsive ── */
@@ -760,6 +763,7 @@
                 return `<div style="
                     display:grid;
                     grid-template-columns:2rem 7rem 1fr 1fr 3rem 3.5rem 3rem 5rem;
+                    overflow:hidden;
                     gap:0.5rem;
                     align-items:center;
                     background:rgba(30,41,59,0.7);
@@ -775,7 +779,7 @@
                     <span style="color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.model_short || t.model || '—'}</span>
                     <span style="color:#94a3b8;text-align:right">${dur}</span>
                     <span style="color:#94a3b8;text-align:right">${cost}</span>
-                    <span style="color:#475569;text-align:right">${t.agent_name || '—'}</span>
+                    <span class="feed-col-agent" style="color:#475569;text-align:right">${t.agent_name || '—'}</span>
                     <span style="color:#475569;text-align:right;font-size:0.75rem">${age}</span>
                 </div>`;
             }).join('');
