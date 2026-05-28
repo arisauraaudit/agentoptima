@@ -227,6 +227,14 @@ async def get_models():
         for m in MODEL_POOL]}
 
 @app.get("/api/v1/rankings")
+ACTIVE_POOL = [
+    "anthropic/claude-sonnet-4-6",
+    "anthropic/claude-3-haiku",
+    "deepseek/deepseek-v4-flash",
+    "openai/gpt-4o-mini",
+    "google/gemini-2.0-flash-001",
+]
+
 async def get_rankings():
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -235,9 +243,11 @@ async def get_rankings():
                     ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
                     ROUND(AVG(duration_s)::numeric,2) AS avg_duration,
                     ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents
-                FROM tasks GROUP BY model, task_type
+                FROM tasks
+                WHERE model = ANY(%s)
+                GROUP BY model, task_type
                 ORDER BY success_rate DESC, tasks_logged DESC
-            """)
+            """, (ACTIVE_POOL,))
             rows = cur.fetchall()
     return {"generated_at": datetime.utcnow().isoformat(),
             "total_rows": len(rows), "models": [dict(r) for r in rows]}
