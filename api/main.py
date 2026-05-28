@@ -226,7 +226,6 @@ async def get_models():
          "avg_cost_cents": rows[m]["avg_cost_cents"] if m in rows else None}
         for m in MODEL_POOL]}
 
-@app.get("/api/v1/rankings")
 ACTIVE_POOL = [
     "anthropic/claude-sonnet-4-6",
     "anthropic/claude-3-haiku",
@@ -235,6 +234,7 @@ ACTIVE_POOL = [
     "google/gemini-2.0-flash-001",
 ]
 
+@app.get("/api/v1/rankings")
 async def get_rankings():
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
