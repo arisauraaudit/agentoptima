@@ -388,7 +388,11 @@
 
         function renderRankings(models) {
             rankingsData = models;
-            rankingsData.sort((a, b) => b.success_rate - a.success_rate);
+            // Group by model name, then sort within group by success_rate
+            rankingsData.sort((a, b) => {
+                if (a.model !== b.model) return a.model.localeCompare(b.model);
+                return b.success_rate - a.success_rate;
+            });
 
             const tbody = document.getElementById('rankings-body');
 
@@ -448,8 +452,15 @@
 
         function renderPerformanceFeed() {
             const container = document.getElementById('performance-feed');
-            
-            const topModels = rankingsData.slice(0, 6);
+
+            // Deduplicate by model name — pick best success_rate row per model
+            const seen = {};
+            rankingsData.forEach(m => {
+                if (!seen[m.model] || m.success_rate > seen[m.model].success_rate) {
+                    seen[m.model] = m;
+                }
+            });
+            const topModels = Object.values(seen).sort((a,b) => b.success_rate - a.success_rate);
             
             container.innerHTML = topModels.map(model => `
                 <div class="feed-card">
