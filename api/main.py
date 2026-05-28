@@ -147,8 +147,8 @@ async def get_status():
 @app.get("/api/v1/models")
 async def get_models():
     MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
-                  "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash:free",
-                  "openai/gpt-4o-mini"]
+                  "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
+                  "google/gemini-2.0-flash-001"]
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
@@ -189,8 +189,8 @@ async def get_progress():
     TARGET = 10
     CATEGORIES = ["coding", "research", "strategy", "writing", "data", "general"]
     MODEL_POOL  = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
-                   "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash:free",
-                   "openai/gpt-4o-mini"]
+                   "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
+                   "google/gemini-2.0-flash-001"]
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
@@ -261,8 +261,8 @@ async def get_recent_tasks(limit: int = 20):
 @app.get("/api/v1/recommend")
 async def get_recommendation(task_type: str = "general", min_tasks: int = 10):
     MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
-                  "deepseek/deepseek-v4-flash", "deepseek/deepseek-v4-flash:free",
-                  "openai/gpt-4o-mini"]
+                  "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
+                  "google/gemini-2.0-flash-001"]
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
