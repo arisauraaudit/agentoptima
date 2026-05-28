@@ -477,66 +477,64 @@
         }
 
         async function refresh() {
+            // Clear any stale error banner
+            const existing = document.querySelector('.error-banner');
+            if (existing) existing.remove();
+
+            // ── Step 1: Status (critical) ─────────────────────────────────
+            let status = null;
             try {
-                // Update status
+                status = await fetchAPI('/status');
                 document.getElementById('api-status').style.display = 'inline-flex';
                 document.getElementById('status-text').textContent = '✓ API Connected';
-                
-                // Fetch status
-                const status = await fetchAPI('/status');
                 document.getElementById('tasks-count').textContent = status.tasks_logged.toLocaleString();
                 document.getElementById('storage-info').textContent = status.storage;
                 document.getElementById('uptime-status').textContent = '✓ Online';
                 document.getElementById('uptime-details').textContent = `v${status.version}`;
+            } catch (e) {
+                console.error('Status fetch failed:', e);
+                document.getElementById('api-status').style.display = 'none';
+                const banner = document.createElement('div');
+                banner.className = 'error-banner';
+                banner.innerHTML = `<strong>⚠️ AgentOptima API is waking up...</strong><br><span class="loading">Retrying in 5 seconds...</span>`;
+                document.querySelector('.hero').after(banner);
+                setTimeout(() => refresh(), 5000);
+                return;
+            }
 
-                // Fetch rankings — update models count AFTER rankings load
+            // ── Step 2: Rankings (non-critical) ──────────────────────────
+            try {
                 rankingsData = await fetchRankings();
                 renderRankings(rankingsData);
-                // Unique model count from live data
                 const uniqueModels = new Set(rankingsData.map(m => m.model)).size;
                 document.getElementById('models-count').textContent = uniqueModels || status.models_tracked || '–';
-                
-                // Fetch recommendations
-                try {
-                    const recommendations = await fetchAPI('/recommendations');
-                    renderRecommendations(recommendations);
-                } catch (e) {
-                    // Show fallback recommendations
-                    document.getElementById('recommendations-panel').innerHTML = `
-                        <div class="recommendation-item">
-                            <span class="prio-high">HIGH PRIORITY</span>
-                            <div class="rec-message">No real data yet. Start tracking tasks to see AI insights!</div>
-                        </div>
-                    `;
-                }
-                
-                // Render performance feed
-                renderPerformanceFeed();
-                
-                lastRefresh = new Date();
-                console.log('Dashboard refreshed at', lastRefresh);
-                
-            } catch (error) {
-                console.error('Refresh error:', error);
-                document.getElementById('api-status').style.display = 'none';
-                // Remove any existing error banner before adding new one
-                const existing = document.querySelector('.error-banner');
-                if (existing) existing.remove();
-                const errorBanner = document.createElement('div');
-                errorBanner.className = 'error-banner';
-                errorBanner.innerHTML = `
-                    <strong>⚠️ Unable to connect to AgentOptima API</strong><br>
-                    <span class="loading">Will retry in 30 seconds...</span>
-                `;
-                document.querySelector('.hero').after(errorBanner);
+            } catch (e) {
+                console.error('Rankings failed:', e);
+                document.getElementById('models-count').textContent = status.models_tracked || '–';
             }
+
+            // ── Step 3: Recommendations (non-critical) ────────────────────
+            try {
+                const recommendations = await fetchAPI('/recommendations');
+                renderRecommendations(recommendations);
+            } catch (e) {
+                console.error('Recommendations failed:', e);
+                document.getElementById('recommendations-panel').innerHTML =
+                    '<p class="loading">Recommendations loading...</p>';
+            }
+
+            // ── Step 4: Performance feed (non-critical) ───────────────────
+            try {
+                renderPerformanceFeed();
+            } catch (e) {
+                console.error('Feed render failed:', e);
+            }
+
+            lastRefresh = new Date();
         }
 
-        // Initialize with retry on first load (handles Railway wake-up delay)
-        refresh().catch(() => {
-            setTimeout(() => refresh(), 3000);
-        });
-
+        // Initialize
+        refresh();
         // Auto-refresh every 30 seconds
         setInterval(refresh, 30000);
         
