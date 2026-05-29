@@ -24,6 +24,12 @@ _TASK_KEYWORDS = {
                      "email", "post", "message", "tweet"],
     "data":         ["data", "database", "sql", "query", "schema", "migrate",
                      "postgres", "sqlite", "ranking", "metrics"],
+    "security":     ["security", "vulnerability", "exploit", "attack", "injection",
+                     "xss", "csrf", "auth", "permission", "owasp", "threat",
+                     "pentest", "firewall", "encrypt", "hash", "jwt", "token"],
+    "math":         ["math", "calculate", "formula", "equation", "probability",
+                     "statistics", "percentage", "average", "median", "compound",
+                     "fibonacci", "complexity", "algorithm", "proof"],
 }
 
 def classify_task(text: str) -> str:
@@ -48,22 +54,26 @@ class ArisTracker:
             duration_s: int = 0, cost_usd: float = 0.0,
             input_tokens: int = 0, output_tokens: int = 0,
             success: bool = True, notes: str = None,
-            task_type: str = None):
+            task_type: str = None, task_id: str = None,
+            parent_task_id: str = None, is_subtask: bool = False):
         """
         Primary logging method — call this directly after each task.
 
         Args:
-            description:   Short task description (truncated to 200 chars)
-            model:         Actual model used (defaults to tracker default)
-            duration_s:    Wall-clock seconds
-            cost_usd:      Estimated USD cost from tiers.py estimate_cost_usd()
-            input_tokens:  Prompt tokens
-            output_tokens: Completion tokens
-            success:       Whether the task completed successfully
-            notes:         Optional free-text notes or error trace
-            task_type:     Override auto-classification
+            description:    Short task description (truncated to 200 chars)
+            model:          Actual model used (defaults to tracker default)
+            duration_s:     Wall-clock seconds
+            cost_usd:       Estimated USD cost from tiers.py estimate_cost_usd()
+            input_tokens:   Prompt tokens
+            output_tokens:  Completion tokens
+            success:        Whether the task completed successfully
+            notes:          Optional free-text notes or error trace
+            task_type:      Override auto-classification
+            task_id:        Explicit task ID (generated if not provided)
+            parent_task_id: ID of the parent decomposed task (for sub-tasks)
+            is_subtask:     True if this is a sub-task of a decomposed parent
         """
-        task_id   = str(uuid.uuid4())[:8]
+        task_id   = task_id or str(uuid.uuid4())[:8]
         task_type = task_type or classify_task(description)
         model     = model or self.model_name
         cost_cents = round(cost_usd * 100, 6)
@@ -80,7 +90,9 @@ class ArisTracker:
             "duration_seconds": duration_s,
             "cost_cents":       cost_cents,
             "success":          success,
-            "notes":            full_notes.strip()
+            "notes":            full_notes.strip(),
+            "parent_task_id":   parent_task_id,
+            "is_subtask":       is_subtask,
         }
 
         try:

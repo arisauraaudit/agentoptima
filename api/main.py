@@ -76,6 +76,12 @@ def init_db():
                 cur.execute("""
                     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS quality_score REAL
                 """)
+                cur.execute("""
+                    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS parent_task_id TEXT DEFAULT NULL
+                """)
+                cur.execute("""
+                    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_subtask BOOLEAN DEFAULT FALSE
+                """)
             conn.commit()
         print("✅ PostgreSQL ready (v0.4.0)")
     except Exception as e:
@@ -125,6 +131,8 @@ class TrackRequest(BaseModel):
     notes: Optional[str]             = None
     output_text: Optional[str]       = None
     quality_score: Optional[float]   = None
+    parent_task_id: Optional[str]    = None
+    is_subtask: bool                 = False
 
 # ── Public endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
@@ -299,7 +307,7 @@ async def get_recent_tasks(limit: int = 20):
             cur.execute("""
                 SELECT id, task_id, task_type, task_desc, model,
                        duration_s, cost_cents, success, notes, agent_name,
-                       quality_score, logged_at
+                       quality_score, parent_task_id, is_subtask, logged_at
                 FROM tasks
                 ORDER BY id DESC
                 LIMIT %s
@@ -319,9 +327,12 @@ async def get_recent_tasks(limit: int = 20):
                 "duration_s": r["duration_s"],
                 "cost_cents": float(r["cost_cents"]) if r["cost_cents"] is not None else None,
                 "success":      r["success"],
-                "quality_score": float(r["quality_score"]) if r["quality_score"] is not None else None,
-                "agent_name":   r["agent_name"],
-                "logged_at":    r["logged_at"].isoformat() if r["logged_at"] else None,
+                "quality_score":  float(r["quality_score"]) if r["quality_score"] is not None else None,
+                "agent_name":     r["agent_name"],
+                "parent_task_id": r["parent_task_id"],
+                "is_subtask":     bool(r["is_subtask"]) if r["is_subtask"] is not None else False,
+                "marker":         "subtask" if r["is_subtask"] else "task",
+                "logged_at":      r["logged_at"].isoformat() if r["logged_at"] else None,
             }
             for r in rows
         ]
@@ -402,13 +413,16 @@ async def track_task(request: TrackRequest,
             cur.execute("""
                 INSERT INTO tasks
                     (task_id, task_type, task_desc, model, duration_s,
-                     cost_cents, success, notes, agent_name, output_text, quality_score)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     cost_cents, success, notes, agent_name, output_text,
+                     quality_score, parent_task_id, is_subtask)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (request.task_id, request.task_type, request.task_description,
                   request.model, request.duration_seconds, request.cost_cents,
                   request.success, request.notes, agent_name,
-                  request.output_text, request.quality_score))
+                  request.output_text, request.quality_score,
+                  request.parent_task_id, request.is_subtask))
         conn.commit()
-    print(f"💾 [{agent_name}] {request.task_id} ({request.task_type}) [{request.model}]")
+    sub_marker = " [subtask]" if request.is_subtask else ""
+    print(f"💾 [{agent_name}]{sub_marker} {request.task_id} ({request.task_type}) [{request.model}]")
     return {"status": "success", "message": f"Task {request.task_id} logged",
             "task_id": request.task_id, "agent": agent_name}
