@@ -82,8 +82,11 @@ def init_db():
                 cur.execute("""
                     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS is_subtask BOOLEAN DEFAULT FALSE
                 """)
+                cur.execute("""
+                    ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_subtype TEXT DEFAULT NULL
+                """)
             conn.commit()
-        print("✅ PostgreSQL ready (v0.4.0)")
+        print("✅ PostgreSQL ready (v0.4.2)")
     except Exception as e:
         print(f"⚠️  DB init warning: {e}")
 
@@ -108,11 +111,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 AgentOptima API v0.4.0 starting...")
+    print("🚀 AgentOptima API v0.4.2 starting...")
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="0.4.2", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -133,6 +136,7 @@ class TrackRequest(BaseModel):
     quality_score: Optional[float]   = None
     parent_task_id: Optional[str]    = None
     is_subtask: bool                 = False
+    task_subtype: Optional[str]      = None
 
 # ── Public endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
@@ -192,7 +196,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "0.4.1"}
+    return {"status": "healthy", "version": "0.4.2"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -206,7 +210,7 @@ async def get_status():
             models = cur.fetchone()[0]
             cur.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1")
             latest = cur.fetchone()
-    return {"status": "running", "version": "0.4.1", "tasks_logged": total,
+    return {"status": "running", "version": "0.4.2", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)"}
@@ -307,7 +311,7 @@ async def get_recent_tasks(limit: int = 20):
             cur.execute("""
                 SELECT id, task_id, task_type, task_desc, model,
                        duration_s, cost_cents, success, notes, agent_name,
-                       quality_score, parent_task_id, is_subtask, logged_at
+                       quality_score, parent_task_id, is_subtask, task_subtype, logged_at
                 FROM tasks
                 ORDER BY id DESC
                 LIMIT %s
@@ -321,6 +325,7 @@ async def get_recent_tasks(limit: int = 20):
                 "id":         r["id"],
                 "task_id":    r["task_id"],
                 "task_type":  r["task_type"],
+                "task_subtype": r["task_subtype"],
                 "task_desc":  r["task_desc"],
                 "model":      r["model"],
                 "model_short": r["model"].split("/")[-1] if r["model"] else "",
@@ -340,27 +345,53 @@ async def get_recent_tasks(limit: int = 20):
 
 
 @app.get("/api/v1/recommend")
-async def get_recommendation(task_type: str = "general", min_tasks: int = 10):
+async def get_recommendation(task_type: str = "general", task_subtype: str = None, min_tasks: int = 10):
     MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
                   "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
                   "google/gemini-2.0-flash-001"]
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("""
-                SELECT model, COUNT(*) AS tasks,
-                    AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
-                    AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents
-                FROM tasks WHERE task_type=%s
-                GROUP BY model HAVING COUNT(*) >= %s
-                ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC, AVG(cost_cents) ASC
-            """, (task_type, min_tasks))
-            rows = cur.fetchall()
+            # Try subtype-specific recommendation first
+            if task_subtype:
+                cur.execute("""
+                    SELECT model, COUNT(*) AS tasks,
+                        AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents
+                    FROM tasks WHERE task_type=%s AND task_subtype=%s
+                    GROUP BY model HAVING COUNT(*) >= %s
+                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC, AVG(cost_cents) ASC
+                """, (task_type, task_subtype, min_tasks))
+                rows = cur.fetchall()
+                
+                # Fall back to task_type if no subtype data
+                if not rows:
+                    cur.execute("""
+                        SELECT model, COUNT(*) AS tasks,
+                            AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                            AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents
+                        FROM tasks WHERE task_type=%s
+                        GROUP BY model HAVING COUNT(*) >= %s
+                        ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC, AVG(cost_cents) ASC
+                    """, (task_type, min_tasks))
+                    rows = cur.fetchall()
+            else:
+                cur.execute("""
+                    SELECT model, COUNT(*) AS tasks,
+                        AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents
+                    FROM tasks WHERE task_type=%s
+                    GROUP BY model HAVING COUNT(*) >= %s
+                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC, AVG(cost_cents) ASC
+                """, (task_type, min_tasks))
+                rows = cur.fetchall()
+    
     if not rows:
+        subtype_info = f" + {task_subtype}" if task_subtype else ""
         return {"mode": "round-robin",
-                "reason": f"insufficient_data (need {min_tasks}+ tasks per model for '{task_type}')",
+                "reason": f"insufficient_data (need {min_tasks}+ tasks per model for '{task_type}{subtype_info}')",
                 "recommended_model": None, "pool": MODEL_POOL}
     best = dict(rows[0])
-    return {"mode": "data-driven", "task_type": task_type,
+    return {"mode": "data-driven", "task_type": task_type, "task_subtype": task_subtype,
             "recommended_model": best["model"],
             "success_rate": round(float(best["success_rate"]), 4),
             "avg_cost_cents": round(float(best["avg_cost_cents"]), 4),
@@ -414,15 +445,16 @@ async def track_task(request: TrackRequest,
                 INSERT INTO tasks
                     (task_id, task_type, task_desc, model, duration_s,
                      cost_cents, success, notes, agent_name, output_text,
-                     quality_score, parent_task_id, is_subtask)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                     quality_score, parent_task_id, is_subtask, task_subtype)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """, (request.task_id, request.task_type, request.task_description,
                   request.model, request.duration_seconds, request.cost_cents,
                   request.success, request.notes, agent_name,
                   request.output_text, request.quality_score,
-                  request.parent_task_id, request.is_subtask))
+                  request.parent_task_id, request.is_subtask, request.task_subtype))
         conn.commit()
     sub_marker = " [subtask]" if request.is_subtask else ""
-    print(f"💾 [{agent_name}]{sub_marker} {request.task_id} ({request.task_type}) [{request.model}]")
+    subtype_marker = f" ({request.task_subtype})" if request.task_subtype else ""
+    print(f"💾 [{agent_name}]{sub_marker}{subtype_marker} {request.task_id} ({request.task_type}) [{request.model}]")
     return {"status": "success", "message": f"Task {request.task_id} logged",
             "task_id": request.task_id, "agent": agent_name}
