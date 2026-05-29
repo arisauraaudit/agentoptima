@@ -754,12 +754,34 @@
                 coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
                 writing:'#ec4899', data:'#10b981', general:'#64748b'
             };
-            container.innerHTML = tasks.map(t => {
+
+            // Build parent→children map
+            const childMap = {};
+            tasks.forEach(t => {
+                if (t.is_subtask && t.parent_task_id) {
+                    if (!childMap[t.parent_task_id]) childMap[t.parent_task_id] = [];
+                    childMap[t.parent_task_id].push(t);
+                }
+            });
+
+            function renderRow(t, isSubtask, childCount) {
                 const age    = t.logged_at ? timeAgo(t.logged_at) : '';
                 const colour = categoryColour[t.task_type] || '#64748b';
                 const ok     = t.success === true ? '✅' : t.success === false ? '❌' : '—';
                 const cost   = t.cost_cents != null ? '$' + (t.cost_cents/100).toFixed(4) : '—';
                 const dur    = t.duration_s != null ? t.duration_s + 's' : '—';
+                const subtaskStyle = isSubtask ? `
+                    padding-left:2.5rem;
+                    border-left:2px solid rgba(148,163,184,0.25);
+                    opacity:0.85;
+                    font-size:0.78rem;
+                ` : '';
+                const badgePrefix = isSubtask ? '↳ ' : '';
+                const descPrefix  = childCount > 0 ? '🧩 ' : '';
+                const subtaskCount = childCount > 0
+                    ? `<span style="color:#475569;font-size:0.72rem"> [${childCount} subtasks]</span>`
+                    : '';
+                const descText = t.task_desc ? t.task_desc.substring(0,80) + (t.task_desc.length>80?'…':'') : '—';
                 return `<div style="
                     display:grid;
                     grid-template-columns:2rem 7rem 1fr 1fr 3rem 3.5rem 3rem 5rem;
@@ -771,21 +793,46 @@
                     border-radius:8px;
                     padding:0.6rem 1rem;
                     font-size:0.82rem;
+                    ${subtaskStyle}
                 ">
                     <span>${ok}</span>
-                    <span style="color:${colour};font-weight:600;background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:4px">${t.task_type || '—'}</span>
-                    ${sourceTag(t.notes)}
-                    <span style="color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.task_desc||'').replace(/"/g,'&quot;')}">${t.task_desc ? t.task_desc.substring(0,80) + (t.task_desc.length>80?'…':'') : '—'}</span>
+                    <span style="color:${colour};font-weight:600;background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:4px">${badgePrefix}${t.task_type || '—'}</span>
+                    ${sourceTag(t)}
+                    <span style="color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.task_desc||'').replace(/"/g,'&quot;')}">${descPrefix}${descText}${subtaskCount}</span>
                     <span style="color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.model_short || t.model || '—'}</span>
                     <span style="color:#94a3b8;text-align:right">${dur}</span>
                     <span style="color:#94a3b8;text-align:right">${cost}</span>
                     <span class="feed-col-agent" style="color:#475569;text-align:right">${t.agent_name || '—'}</span>
                     <span style="color:#475569;text-align:right;font-size:0.75rem">${age}</span>
                 </div>`;
-            }).join('');
+            }
+
+            // Render: parents first with children immediately after, then orphan subtasks
+            const rows = [];
+            const renderedIds = new Set();
+            tasks.forEach(t => {
+                if (t.is_subtask) return; // skip subtasks in first pass
+                const children = childMap[t.task_id] || [];
+                rows.push(renderRow(t, false, children.length));
+                renderedIds.add(t.task_id);
+                children.forEach(child => {
+                    rows.push(renderRow(child, true, 0));
+                    renderedIds.add(child.task_id);
+                });
+            });
+            // Orphan subtasks (parent not in current view)
+            tasks.forEach(t => {
+                if (t.is_subtask && !renderedIds.has(t.task_id)) {
+                    rows.push(renderRow(t, true, 0));
+                }
+            });
+
+            container.innerHTML = rows.join('');
         }
 
-        function sourceTag(notes) {
+        function sourceTag(t) {
+            if (t.is_subtask) return '<span style="font-size:0.7rem;background:rgba(148,163,184,0.1);color:#94a3b8;border-radius:4px;padding:1px 5px;white-space:nowrap">↳ subtask</span>';
+            const notes = t.notes || '';
             if (!notes) return '';
             const n = notes.toLowerCase();
             if (n.includes('decompose'))    return '<span style="font-size:0.7rem;background:rgba(139,92,246,0.2);color:#a78bfa;border-radius:4px;padding:1px 5px;white-space:nowrap">🧩 decompose</span>';
