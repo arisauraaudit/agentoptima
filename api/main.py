@@ -1,4 +1,4 @@
-# AgentOptima API v0.4.0 — API key auth + progress tracking
+# AgentOptima API v0.4.1 — API key auth + progress tracking
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -192,7 +192,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "0.4.0"}
+    return {"status": "healthy", "version": "0.4.1"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -206,7 +206,7 @@ async def get_status():
             models = cur.fetchone()[0]
             cur.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1")
             latest = cur.fetchone()
-    return {"status": "running", "version": "0.4.0", "tasks_logged": total,
+    return {"status": "running", "version": "0.4.1", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)"}
