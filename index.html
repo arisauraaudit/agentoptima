@@ -788,7 +788,7 @@
                     : `<span style="color:#475569;font-size:0.75rem">${t.agent_name || '—'}</span>`;
                 return `<div style="
                     display:grid;
-                    grid-template-columns:2rem 7rem 1fr 1fr 3rem 3.5rem 3rem 5rem;
+                    grid-template-columns:2rem 7rem ${isSubtask ? '0' : 'auto'} 2fr 8rem 3rem 3.5rem 5rem;
                     overflow:hidden;
                     gap:0.5rem;
                     align-items:center;
@@ -835,7 +835,7 @@
         }
 
         function sourceTag(t) {
-            if (t.is_subtask) return '<span style="font-size:0.65rem;background:rgba(148,163,184,0.1);color:#94a3b8;border-radius:4px;padding:1px 3px;white-space:nowrap">↳</span>';
+            if (t.is_subtask) return '';
             const notes = t.notes || '';
             if (!notes) return '';
             const n = notes.toLowerCase();
