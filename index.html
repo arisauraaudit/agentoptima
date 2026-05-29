@@ -164,7 +164,10 @@
         .hidden-cats { display: none; }
         @media (max-width: 640px) {
             .feed-col-agent { display: none; }
+            .feed-row-desktop { display: none !important; }
+            .feed-row-mobile { display: grid !important; }
         }
+        .feed-row-mobile { display: none; }
         .chevron.open { transform: rotate(180deg); }
 
         /* ── Rankings responsive ── */
@@ -786,19 +789,10 @@
                 const agentDisplay = t.agent_name && t.agent_name.includes('/subagent:')
                     ? `<span style="color:#7c3aed;font-size:0.72rem;background:rgba(124,58,237,0.1);padding:1px 4px;border-radius:3px">${t.agent_name.replace('aris/subagent:', '🤖 ')}</span>`
                     : `<span style="color:#475569;font-size:0.75rem">${t.agent_name || '—'}</span>`;
-                return `<div style="
-                    display:grid;
-                    grid-template-columns:2rem 7rem auto 2fr 8rem 3rem 3.5rem 5rem;
-                    overflow:hidden;
-                    gap:0.5rem;
-                    align-items:center;
-                    background:rgba(30,41,59,0.7);
-                    border:1px solid rgba(148,163,184,0.12);
-                    border-radius:8px;
-                    padding:0.6rem 1rem;
-                    font-size:0.82rem;
-                    ${subtaskStyle}
-                ">
+                const baseStyle = `background:rgba(30,41,59,0.7);border:1px solid rgba(148,163,184,0.12);border-radius:8px;padding:0.6rem 1rem;font-size:0.82rem;${subtaskStyle}`;
+                const mobileDesc = t.task_desc ? t.task_desc.substring(0, 55) + (t.task_desc.length > 55 ? '…' : '') : '—';
+                return `
+                <div class="feed-row-desktop" style="display:grid;grid-template-columns:2rem 7rem auto 2fr 8rem 3rem 3.5rem 5rem;overflow:hidden;gap:0.5rem;align-items:center;${baseStyle}">
                     <span>${ok}</span>
                     <span style="color:${colour};font-weight:600;background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:4px">${badgePrefix}${t.task_type || '—'}</span>
                     ${sourceTag(t)}
@@ -808,6 +802,14 @@
                     <span style="color:#94a3b8;text-align:right">${cost}</span>
                     <span class="feed-col-agent" style="text-align:right">${agentDisplay}</span>
                     <span style="color:#475569;text-align:right;font-size:0.75rem">${isSubtask ? '' : age}</span>
+                </div>
+                <div class="feed-row-mobile" style="grid-template-columns:2rem auto 1fr;gap:0.4rem;align-items:center;${baseStyle}">
+                    <span>${ok}</span>
+                    <span style="color:${colour};font-weight:600;background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:4px;white-space:nowrap">${badgePrefix}${t.task_type || '—'}</span>
+                    <span style="color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.78rem">${descPrefix}${mobileDesc}</span>
+                    <span></span>
+                    <span style="color:#64748b;font-size:0.72rem">${t.model_short || '—'}</span>
+                    <span style="color:#475569;font-size:0.72rem">${dur} ${cost}</span>
                 </div>`;
             }
 
