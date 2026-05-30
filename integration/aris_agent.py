@@ -7,7 +7,11 @@ Designed for fire-and-forget use: failures are logged but never raise.
 import requests
 import uuid
 import time
+import sys
+import threading
 from datetime import datetime
+
+sys.path.insert(0, '/root/.aris')
 
 API_BASE_URL  = "https://agentoptima.ai/api/v1"
 ARIS_API_KEY  = "ao-41727e957d734ef638903180293af0d6171efda7373902e6"
@@ -55,7 +59,9 @@ class ArisTracker:
             input_tokens: int = 0, output_tokens: int = 0,
             success: bool = True, notes: str = None,
             task_type: str = None, task_id: str = None,
-            parent_task_id: str = None, is_subtask: bool = False):
+            parent_task_id: str = None, is_subtask: bool = False,
+            output_text: str = None, task_subtype: str = None,
+            auto_score: bool = True):
         """
         Primary logging method — call this directly after each task.
 
@@ -72,6 +78,9 @@ class ArisTracker:
             task_id:        Explicit task ID (generated if not provided)
             parent_task_id: ID of the parent decomposed task (for sub-tasks)
             is_subtask:     True if this is a sub-task of a decomposed parent
+            output_text:    Raw model output (stored + auto-scored if provided)
+            task_subtype:   Fine-grained subtype e.g. 'coding/python'
+            auto_score:     If True and output_text provided, auto-score quality in background
         """
         task_id   = task_id or str(uuid.uuid4())[:8]
         task_type = task_type or classify_task(description)
@@ -81,6 +90,15 @@ class ArisTracker:
         full_notes = notes or ""
         if input_tokens or output_tokens:
             full_notes = f"in={input_tokens} out={output_tokens} tokens | " + full_notes
+
+        # Pre-score quality if output_text is provided (fast path)
+        quality_score = None
+        if output_text and auto_score and len(output_text.strip()) >= 10:
+            try:
+                from quality_evaluator import evaluate_output
+                quality_score = evaluate_output(description, output_text, task_type)
+            except Exception:
+                pass  # never block logging
 
         payload = {
             "task_id":          task_id,
@@ -93,14 +111,18 @@ class ArisTracker:
             "notes":            full_notes.strip(),
             "parent_task_id":   parent_task_id,
             "is_subtask":       is_subtask,
+            "output_text":      (output_text[:3000] if output_text else None),
+            "task_subtype":     task_subtype,
+            "quality_score":    quality_score,
         }
 
         try:
             r = requests.post(f"{self.api_url}/track", json=payload,
                               headers=self.headers, timeout=8)
+            score_tag = f" q={quality_score:.1f}/5" if quality_score else ""
             if r.status_code == 200:
                 print(f"⚡ AgentOptima logged [{task_type}] {task_id} "
-                      f"({model}, {duration_s}s, ${cost_usd:.4f})")
+                      f"({model}, {duration_s}s, ${cost_usd:.4f}){score_tag}")
             else:
                 print(f"⚠️  AgentOptima log failed {r.status_code}: {r.text[:100]}")
         except Exception as e:

@@ -1,4 +1,4 @@
-# AgentOptima API v0.4.1 — API key auth + progress tracking
+# AgentOptima API v0.5.0 — quality scoring + actionable recommendations
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -86,7 +86,7 @@ def init_db():
                     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_subtype TEXT DEFAULT NULL
                 """)
             conn.commit()
-        print("✅ PostgreSQL ready (v0.4.2)")
+        print("✅ PostgreSQL ready (v0.5.0)")
     except Exception as e:
         print(f"⚠️  DB init warning: {e}")
 
@@ -111,11 +111,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 AgentOptima API v0.4.2 starting...")
+    print("🚀 AgentOptima API v0.5.0 starting...")
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="0.4.2", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="0.5.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -401,38 +401,166 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
 
 @app.get("/api/v1/recommendations")
 async def get_recommendations():
+    """Actionable per-model-per-category intelligence, not just a health badge."""
+    SONNET = "anthropic/claude-sonnet-4-6"
+    MIN_TASKS = 5  # minimum tasks before a model gets a recommendation
+    FAIL_THRESHOLD = 0.70  # flag models below this success rate
+    COST_WIN_MIN = 5.0  # only flag cost wins where cheap model is >=5x cheaper
+
+    recommendations = []
+
     with get_db() as conn:
-        with conn.cursor() as cur:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Per-model per-category stats (with quality score awareness)
+            cur.execute("""
+                SELECT model, task_type AS category,
+                       COUNT(*) AS tasks,
+                       ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,3) AS success_rate,
+                       ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents,
+                       ROUND(AVG(quality_score)::numeric,2) AS avg_quality,
+                       COUNT(quality_score) AS quality_samples
+                FROM tasks
+                GROUP BY model, task_type
+                HAVING COUNT(*) >= %s
+                ORDER BY task_type, success_rate DESC, avg_cost_cents ASC
+            """, (MIN_TASKS,))
+            rows = cur.fetchall()
+
             cur.execute("SELECT COUNT(*) FROM tasks")
-            total = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(*) FROM tasks WHERE success=TRUE")
-            success = cur.fetchone()[0]
-            cur.execute("SELECT AVG(duration_s) FROM tasks")
-            avg_dur = cur.fetchone()[0] or 0
-    recommendations, summary = [], ""
-    if total == 0:
-        summary = "No data yet."
-        recommendations.append({"priority": "high", "category": "onboarding",
-                                 "message": "No tasks logged yet.",
-                                 "action": "Run tasks through the Aris orchestrator."})
-    else:
-        rate    = success / total
-        summary = (f"{total} tasks | Success: {success}/{total} ({rate*100:.0f}%) | "
-                   f"Avg duration: {avg_dur:.1f}s")
-        if rate < 0.8:
-            recommendations.append({"priority": "high", "category": "reliability",
-                                     "message": f"Success rate {rate*100:.0f}% below 80% target.",
-                                     "action": "Review failure notes for error patterns."})
+            total_tasks = cur.fetchone()[0]
+
+            cur.execute("SELECT COUNT(*) FROM tasks WHERE quality_score IS NOT NULL")
+            scored_tasks = cur.fetchone()[0]
+
+    # Bucket by category
+    by_cat = {}
+    for r in rows:
+        by_cat.setdefault(r["category"], []).append(dict(r))
+
+    # Find Sonnet's stats per category (baseline cost)
+    sonnet_by_cat = {}
+    for cat, models in by_cat.items():
+        for m in models:
+            if m["model"] == SONNET:
+                sonnet_by_cat[cat] = m
+                break
+
+    # 1. Cost-win opportunities: cheap model beats Sonnet with same/better success
+    for cat, models in by_cat.items():
+        sonnet = sonnet_by_cat.get(cat)
+        if not sonnet or float(sonnet["avg_cost_cents"]) <= 0:
+            continue
+        for m in models:
+            if m["model"] == SONNET:
+                continue
+            cost_ratio = float(sonnet["avg_cost_cents"]) / max(float(m["avg_cost_cents"]), 0.0001)
+            if cost_ratio >= COST_WIN_MIN and float(m["success_rate"]) >= 0.90:
+                quality_note = ""
+                if m["quality_samples"] and m["avg_quality"]:
+                    quality_note = f", quality {float(m['avg_quality']):.1f}/5"
+                recommendations.append({
+                    "priority": "high",
+                    "category": "cost_optimization",
+                    "task_category": cat,
+                    "model": m["model"],
+                    "message": (
+                        f"{m['model'].split('/')[-1]} wins on {cat}: "
+                        f"{cost_ratio:.0f}x cheaper than Sonnet "
+                        f"({float(m['avg_cost_cents']):.4f}¢ vs {float(sonnet['avg_cost_cents']):.4f}¢), "
+                        f"{float(m['success_rate'])*100:.0f}% success{quality_note}"
+                    ),
+                    "action": f"Route {cat} tasks to {m['model'].split('/')[-1]} — data supports it ({int(m['tasks'])} tasks)",
+                    "cost_ratio": round(cost_ratio, 1),
+                    "tasks": int(m["tasks"]),
+                })
+
+    # 2. Reliability alerts: models failing below threshold
+    for cat, models in by_cat.items():
+        for m in models:
+            if float(m["success_rate"]) < FAIL_THRESHOLD:
+                recommendations.append({
+                    "priority": "high",
+                    "category": "reliability_alert",
+                    "task_category": cat,
+                    "model": m["model"],
+                    "message": (
+                        f"{m['model'].split('/')[-1]} failing on {cat}: "
+                        f"{float(m['success_rate'])*100:.0f}% success rate "
+                        f"({int(m['tasks'])} tasks)"
+                    ),
+                    "action": f"Remove {m['model'].split('/')[-1]} from {cat} pool or investigate failure notes",
+                    "success_rate": float(m["success_rate"]),
+                    "tasks": int(m["tasks"]),
+                })
+
+    # 3. Quality scoring coverage
+    if total_tasks > 0:
+        coverage_pct = round(scored_tasks / total_tasks * 100, 1)
+        if coverage_pct < 30:
+            recommendations.append({
+                "priority": "medium",
+                "category": "quality_coverage",
+                "message": f"Only {coverage_pct}% of tasks have quality scores ({scored_tasks}/{total_tasks})",
+                "action": "Run: python3 /root/.aris/quality_evaluator.py --backfill",
+                "coverage_pct": coverage_pct,
+            })
         else:
-            recommendations.append({"priority": "low", "category": "optimization",
-                                     "message": f"Success rate {rate*100:.0f}% is healthy \u2705",
-                                     "action": None})
-        if avg_dur > 300:
-            recommendations.append({"priority": "medium", "category": "performance",
-                                     "message": f"Avg duration {avg_dur:.0f}s is high.",
-                                     "action": "Consider breaking long tasks into subtasks."})
-    return {"recommendations": recommendations,
-            "last_updated": datetime.utcnow().isoformat(), "summary": summary}
+            recommendations.append({
+                "priority": "low",
+                "category": "quality_coverage",
+                "message": f"Quality scoring at {coverage_pct}% ✅ ({scored_tasks}/{total_tasks} tasks)",
+                "action": None,
+                "coverage_pct": coverage_pct,
+            })
+
+    # 4. Data gaps: subtypes with fewer than 10 tasks across all models
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT task_subtype, COUNT(*) AS tasks
+                FROM tasks
+                WHERE task_subtype IS NOT NULL
+                GROUP BY task_subtype
+                HAVING COUNT(*) < 10
+                ORDER BY tasks ASC
+                LIMIT 5
+            """)
+            thin_subtypes = cur.fetchall()
+
+    for st in thin_subtypes:
+        recommendations.append({
+            "priority": "low",
+            "category": "data_gap",
+            "task_subtype": st["task_subtype"],
+            "message": f"Thin data for subtype '{st['task_subtype']}': only {st['tasks']} tasks",
+            "action": f"Run more benchmarks for {st['task_subtype']} to stabilize routing",
+            "tasks": int(st["tasks"]),
+        })
+
+    # Summary
+    high_count = sum(1 for r in recommendations if r["priority"] == "high")
+    cost_wins = [r for r in recommendations if r["category"] == "cost_optimization"]
+    summary = (
+        f"{total_tasks} tasks | {scored_tasks} quality-scored | "
+        f"{high_count} high-priority signals | "
+        f"{len(cost_wins)} cost-win opportunities identified"
+    )
+
+    if not recommendations:
+        recommendations.append({
+            "priority": "low",
+            "category": "status",
+            "message": "Routing looks healthy ✅ No immediate actions needed",
+            "action": "Continue collecting data to improve signal quality",
+        })
+
+    return {
+        "recommendations": sorted(recommendations, key=lambda r: {"high": 0, "medium": 1, "low": 2}[r["priority"]]),
+        "last_updated": datetime.utcnow().isoformat(),
+        "summary": summary,
+        "total_tasks": total_tasks,
+        "quality_scored": scored_tasks,
+    }
 
 # ── Protected endpoints (require API key) ──────────────────────────────────────
 @app.post("/api/v1/track")
@@ -458,3 +586,24 @@ async def track_task(request: TrackRequest,
     print(f"💾 [{agent_name}]{sub_marker}{subtype_marker} {request.task_id} ({request.task_type}) [{request.model}]")
     return {"status": "success", "message": f"Task {request.task_id} logged",
             "task_id": request.task_id, "agent": agent_name}
+
+
+@app.patch("/api/v1/tasks/{task_id}/quality")
+async def patch_quality_score(task_id: str, quality_score: float,
+                               x_api_key: Optional[str] = Header(default=None)):
+    """Update quality_score for an existing task (called by quality_evaluator.py)."""
+    verify_key(x_api_key)
+    if not (1.0 <= quality_score <= 5.0):
+        raise HTTPException(status_code=400, detail="quality_score must be 1.0–5.0")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE tasks SET quality_score=%s WHERE task_id=%s",
+                (quality_score, task_id)
+            )
+            updated = cur.rowcount
+        conn.commit()
+    if updated == 0:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    print(f"⭐ quality_score={quality_score} patched for task_id={task_id}")
+    return {"status": "success", "task_id": task_id, "quality_score": quality_score}
