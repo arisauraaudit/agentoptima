@@ -755,6 +755,25 @@ async def track_task(request: TrackRequest,
             "task_id": request.task_id, "agent": agent_name}
 
 
+@app.delete("/api/v1/tasks/purge")
+async def purge_tasks_by_notes(notes_contains: str,
+                               x_api_key: Optional[str] = Header(default=None)):
+    """Delete tasks where notes contains a substring. Protected endpoint."""
+    verify_key(x_api_key)
+    if not notes_contains or len(notes_contains) < 5:
+        raise HTTPException(status_code=400, detail="notes_contains must be at least 5 chars")
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM tasks WHERE notes ILIKE %s",
+                        (f"%{notes_contains}%",))
+            count = cur.fetchone()[0]
+            cur.execute("DELETE FROM tasks WHERE notes ILIKE %s",
+                        (f"%{notes_contains}%",))
+        conn.commit()
+    print(f"🗑️  Purged {count} tasks matching notes~'{notes_contains}'")
+    return {"deleted": count, "pattern": notes_contains}
+
+
 @app.patch("/api/v1/tasks/{task_id}/quality")
 async def patch_quality_score(task_id: str, quality_score: float,
                                x_api_key: Optional[str] = Header(default=None)):
