@@ -428,11 +428,40 @@ async def get_recent_tasks(limit: int = 20):
     }
 
 
+@app.get("/api/v1/classify")
+async def classify_task_endpoint(text: str):
+    """Classify a task description into an AgentOptima subtype."""
+    import sys
+    sys.path.insert(0, '/app')
+    try:
+        from integration.task_classifier import classify_task
+        result = classify_task(text)
+        return {"input": text[:200], **result}
+    except Exception as e:
+        return {"input": text[:200], "subtype": "general", "category": "general",
+                "confidence": 0.3, "method": "fallback", "error": str(e)}
+
+
 @app.get("/api/v1/recommend")
-async def get_recommendation(task_type: str = "general", task_subtype: str = None, min_tasks: int = 10):
+async def get_recommendation(task_type: str = "general", task_subtype: str = None,
+                             min_tasks: int = 10, text: str = None):
     MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
                   "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
                   "google/gemini-2.0-flash-001"]
+
+    # Auto-classify from text if provided and task_type is still default
+    classification_meta = None
+    if text and task_type == "general":
+        try:
+            import sys
+            sys.path.insert(0, '/app')
+            from integration.task_classifier import classify_task
+            clf = classify_task(text)
+            if clf["subtype"] != "general" and clf["confidence"] >= 0.5:
+                task_type = clf["subtype"]
+                classification_meta = clf
+        except Exception:
+            pass
 
     # Auto-detect subtype: if task_type contains '/' (e.g. 'coding/python'),
     # split into base_type + subtype so the DB lookup works correctly.
@@ -526,6 +555,7 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
         "avg_quality": round(float(best["avg_quality"]), 2) if best["avg_quality"] else None,
         "based_on_tasks": int(best["tasks"]),
         "all_candidates": [dict(r) for r in rows],
+        "classification": classification_meta,
     }
 
 @app.get("/api/v1/recommendations")
