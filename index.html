@@ -470,10 +470,21 @@
         <div class="section">
             <h2 class="section-title">Live Model Rankings</h2>
             <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — recommendations update with every task. Click any model to expand per-category breakdown.
+                <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — AgentOptima Score combines quality, reliability and cost efficiency across all task types.
             </p>
             <div id="rankings-accordion">
                 <div style="color:#64748b;padding:1.5rem;text-align:center">Loading rankings…</div>
+            </div>
+        </div>
+
+        <!-- ── Routing Map ─────────────────────────────────────────────── -->
+        <div class="section" id="routing-map-section">
+            <h2 class="section-title">🗺️ Routing Map</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                Every task type routes to the best model — determined by real production data. Send a task type to <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/recommend</code> and get the optimal model instantly.
+            </p>
+            <div id="routing-map-container">
+                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading routing map…</div>
             </div>
         </div>
 
@@ -493,15 +504,6 @@
             </div>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">Model Performance</h2>
-            <div class="live-feed" id="performance-feed">
-                <div class="feed-card">
-                    <div class="feed-model">Loading...</div>
-                    <div class="feed-type">Fetching data</div>
-                </div>
-            </div>
-        </div>
 
         <!-- ── Connect Your Agent ──────────────────────────────────────── -->
         <div class="section" id="connect-section">
@@ -626,6 +628,21 @@
             } catch(e) { return {}; }
         }
 
+        // ── AgentOptima Score ──────────────────────────────────────────────────
+        function computeAOScore(rows) {
+            // Score 0-100: 40pts reliability + 30pts quality + 30pts cost efficiency
+            if (!rows || rows.length === 0) return 0;
+            const avgSuccess = rows.reduce((s,r) => s + (r.success_rate||0), 0) / rows.length;
+            const qualityRows = rows.filter(r => r.avg_quality > 0);
+            const avgQuality = qualityRows.length > 0
+                ? qualityRows.reduce((s,r) => s + (r.avg_quality||0), 0) / qualityRows.length
+                : 3.0; // default mid if no quality data
+            const avgCost = rows.reduce((s,r) => s + (r.avg_cost_cents||0), 0) / rows.length;
+            // Cost score: log-inverted — $0.001 = ~30pts, $0.10 = ~15pts, $1+ = ~0pts
+            const costScore = Math.max(0, 30 - Math.log10(Math.max(avgCost, 0.001) + 0.001) * 10);
+            return Math.min(100, Math.round(avgSuccess * 40 + (avgQuality / 5) * 30 + costScore));
+        }
+
         function renderRankings(models, routing, subtypeRows, subtypeProgress) {
             routing = routing || {};
             subtypeProgress = subtypeProgress || {};
@@ -693,6 +710,11 @@
                     ? `<span style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:20px;padding:2px 10px;font-size:0.75rem;font-weight:600;margin-left:0.5rem">🎯 Best for ${leads} cat${leads>1?'s':''}</span>`
                     : '';
 
+                // AgentOptima Score
+                const aoScore = computeAOScore(rows);
+                const scoreColour = aoScore >= 80 ? '#10b981' : aoScore >= 60 ? '#f59e0b' : '#ef4444';
+                const scoreBadge = `<span title="AgentOptima Score: quality × reliability ÷ cost" style="background:rgba(99,102,241,0.12);color:${scoreColour};border:1px solid rgba(99,102,241,0.25);border-radius:20px;padding:2px 10px;font-size:0.75rem;font-weight:700;margin-left:0.5rem">AO ${aoScore}</span>`;
+
                 const catRows = rows
                     .sort((a,b) => (b.tasks_logged||0) - (a.tasks_logged||0))
                     .map(r => {
@@ -753,6 +775,7 @@
                         <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.25rem;min-width:0">
                             <span class="rank-model-name" style="font-size:0.95rem;font-weight:700;color:#f1f5f9">${providerTag} ${shortName}</span>
                             <span style="font-size:0.75rem;color:#475569;flex-shrink:0">${rows.length} cats</span>
+                            ${scoreBadge}
                             ${leadBadge}
                         </div>
                         <span style="color:${rateColour};font-weight:700;font-size:1rem;white-space:nowrap">${rateLabel}</span>
@@ -771,6 +794,93 @@
                         </div>
                         ${catRows}
                     </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ── Routing Map ──────────────────────────────────────────────────
+        function renderRoutingMap(subtypeProgress, catRouting) {
+            const container = document.getElementById('routing-map-container');
+            if (!container) return;
+
+            const providerColour = m => m.includes('anthropic') ? '#a78bfa' :
+                                        m.includes('openai')    ? '#34d399' :
+                                        m.includes('deepseek')  ? '#60a5fa' :
+                                        m.includes('google')    ? '#fb923c' : '#94a3b8';
+            const providerTag = m => m.includes('anthropic') ? '🟣' :
+                                     m.includes('openai')    ? '🟢' :
+                                     m.includes('deepseek')  ? '🔵' :
+                                     m.includes('google')    ? '🟠' : '⚪';
+            const shortName = m => m.split('/').pop();
+
+            const catColour = {
+                coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
+                writing:'#ec4899', data:'#10b981', general:'#64748b',
+                math:'#f97316', security:'#ef4444'
+            };
+
+            // Group subtypes by category
+            const byCategory = {};
+            Object.entries(subtypeProgress).forEach(([subtype, info]) => {
+                const cat = subtype.split('/')[0];
+                if (!byCategory[cat]) byCategory[cat] = [];
+                byCategory[cat].push({ subtype, ...info });
+            });
+
+            // Add category-level routes (no subtype data but have routing)
+            Object.entries(catRouting || {}).forEach(([cat, model]) => {
+                if (!byCategory[cat]) byCategory[cat] = [];
+            });
+
+            const cats = Object.keys(byCategory).sort();
+
+            if (cats.length === 0) {
+                container.innerHTML = '<div style="color:#64748b;padding:2rem;text-align:center">No routing data yet.</div>';
+                return;
+            }
+
+            container.innerHTML = cats.map(cat => {
+                const col = catColour[cat] || '#64748b';
+                const catModel = catRouting[cat];
+                const catModelHtml = catModel
+                    ? `<span style="color:${providerColour(catModel)};font-weight:600;font-size:0.85rem">${providerTag(catModel)} ${shortName(catModel)}</span>`
+                    : `<span style="color:#475569;font-size:0.8rem">mixed</span>`;
+
+                const subtypes = byCategory[cat] || [];
+                const subtypeHtml = subtypes
+                    .sort((a,b) => a.subtype.localeCompare(b.subtype))
+                    .map(st => {
+                        const leader = st.current_leader || '';
+                        const ready = st.routing_ready;
+                        const stName = st.subtype.split('/')[1] || st.subtype;
+                        const qualLabel = st.leader_quality ? `q=${st.leader_quality}` : '';
+                        const costLabel = st.leader_cost ? `${st.leader_cost < 0.1 ? '<$0.001' : '$'+(st.leader_cost/100).toFixed(4)}/task` : '';
+                        const statusDot = ready
+                            ? `<span style="color:#10b981;font-size:0.7rem;font-weight:700">● LIVE</span>`
+                            : `<span style="color:#475569;font-size:0.7rem">${st.runs_needed} runs left</span>`;
+                        return `
+                        <div style="display:grid;grid-template-columns:180px 1fr auto auto auto;gap:0.75rem;align-items:center;
+                            padding:0.45rem 1.25rem 0.45rem 2rem;
+                            border-top:1px solid rgba(148,163,184,0.06);
+                            background:rgba(0,0,0,0.12)">
+                            <span style="color:${col};opacity:0.8;font-size:0.82rem">↳ ${stName}</span>
+                            <span style="color:${providerColour(leader)};font-weight:600;font-size:0.85rem">${providerTag(leader)} ${shortName(leader)}</span>
+                            <span style="color:#a78bfa;font-size:0.75rem">${qualLabel}</span>
+                            <span style="color:#f59e0b;font-size:0.75rem">${costLabel}</span>
+                            ${statusDot}
+                        </div>`;
+                    }).join('');
+
+                return `
+                <div style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.12);border-radius:12px;margin-bottom:0.6rem;overflow:hidden">
+                    <div style="display:grid;grid-template-columns:140px 1fr auto;gap:1rem;align-items:center;
+                        padding:0.75rem 1.25rem;">
+                        <span style="background:rgba(0,0,0,0.3);color:${col};padding:4px 14px;border-radius:20px;
+                            font-weight:700;font-size:0.85rem;text-align:center">${cat}</span>
+                        ${catModelHtml}
+                        <span style="color:#475569;font-size:0.75rem">${subtypes.length} subtype${subtypes.length!==1?'s':''}</span>
+                    </div>
+                    ${subtypeHtml}
                 </div>`;
             }).join('');
         }
@@ -875,13 +985,6 @@
                     '<p class="loading">Recommendations loading...</p>';
             }
 
-            // -- Step 4: Performance feed (non-critical)
-            try {
-                renderPerformanceFeed();
-            } catch (e) {
-                console.error('Feed render failed:', e);
-            }
-
             // -- Step 5: Fetch routing recommendations per category (non-critical)
             try {
                 const CATS = ['coding','research','strategy','writing','data','general'];
@@ -896,6 +999,8 @@
                 });
                 // Re-render rankings with routing data + subtypes baked in
                 renderRankings(rankingsData, routing, _subtypeRows, _subtypeProgress);
+                // Render routing map
+                renderRoutingMap(_subtypeProgress, routing);
             } catch(e) { console.error('Routing recommendations failed:', e); }
 
             // -- Step 6: Recent tasks feed (non-critical)
