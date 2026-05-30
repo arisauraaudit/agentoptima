@@ -86,7 +86,7 @@ def init_db():
                     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_subtype TEXT DEFAULT NULL
                 """)
             conn.commit()
-        print("✅ PostgreSQL ready (v0.5.0)")
+        print("✅ PostgreSQL ready (v0.6.0)")
     except Exception as e:
         print(f"⚠️  DB init warning: {e}")
 
@@ -111,11 +111,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 AgentOptima API v0.5.0 starting...")
+    print("🚀 AgentOptima API v0.6.0 starting...")
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="0.6.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -196,7 +196,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "0.4.2"}
+    return {"status": "healthy", "version": "0.6.0"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -210,7 +210,7 @@ async def get_status():
             models = cur.fetchone()[0]
             cur.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1")
             latest = cur.fetchone()
-    return {"status": "running", "version": "0.4.2", "tasks_logged": total,
+    return {"status": "running", "version": "0.6.0", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)"}
@@ -247,22 +247,106 @@ ACTIVE_POOL = [
 ]
 
 @app.get("/api/v1/rankings")
-async def get_rankings():
+async def get_rankings(include_subtypes: bool = False):
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Category-level rankings
             cur.execute("""
-                SELECT model, task_type AS category, COUNT(*) AS tasks_logged,
+                SELECT model, task_type AS category, NULL AS subtype,
+                    COUNT(*) AS tasks_logged,
                     ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
                     ROUND(AVG(duration_s)::numeric,2) AS avg_duration,
-                    ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents
+                    ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents,
+                    ROUND(AVG(quality_score)::numeric,2) AS avg_quality
                 FROM tasks
                 WHERE model = ANY(%s)
                 GROUP BY model, task_type
                 ORDER BY success_rate DESC, tasks_logged DESC
             """, (ACTIVE_POOL,))
+            category_rows = cur.fetchall()
+
+            subtype_rows = []
+            if include_subtypes:
+                # Subtype-level rankings (only where task_subtype is set)
+                cur.execute("""
+                    SELECT model, task_type AS category, task_subtype AS subtype,
+                        COUNT(*) AS tasks_logged,
+                        ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
+                        ROUND(AVG(duration_s)::numeric,2) AS avg_duration,
+                        ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents,
+                        ROUND(AVG(quality_score)::numeric,2) AS avg_quality
+                    FROM tasks
+                    WHERE model = ANY(%s) AND task_subtype IS NOT NULL
+                    GROUP BY model, task_type, task_subtype
+                    ORDER BY task_subtype, success_rate DESC, tasks_logged DESC
+                """, (ACTIVE_POOL,))
+                subtype_rows = cur.fetchall()
+
+    return {
+        "generated_at": datetime.utcnow().isoformat(),
+        "total_rows": len(category_rows),
+        "models": [dict(r) for r in category_rows],
+        "subtypes": [dict(r) for r in subtype_rows] if include_subtypes else None,
+        "subtype_rows": len(subtype_rows) if include_subtypes else None,
+    }
+
+@app.get("/api/v1/subtype-progress")
+async def get_subtype_progress():
+    """Per-model, per-subtype task counts vs threshold (10) for subtype routing activation."""
+    TARGET = 10
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT task_subtype, model,
+                    COUNT(*) AS n,
+                    ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
+                    ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents,
+                    ROUND(AVG(quality_score)::numeric,2) AS avg_quality
+                FROM tasks
+                WHERE task_subtype IS NOT NULL AND model = ANY(%s)
+                GROUP BY task_subtype, model
+                ORDER BY task_subtype, n DESC
+            """, (ACTIVE_POOL,))
             rows = cur.fetchall()
-    return {"generated_at": datetime.utcnow().isoformat(),
-            "total_rows": len(rows), "models": [dict(r) for r in rows]}
+
+    # Group by subtype
+    by_subtype: dict = {}
+    for r in rows:
+        st = r["task_subtype"]
+        if st not in by_subtype:
+            by_subtype[st] = []
+        by_subtype[st].append(dict(r))
+
+    result = []
+    for subtype, model_rows in sorted(by_subtype.items()):
+        per_model = {m: 0 for m in ACTIVE_POOL}
+        for r in model_rows:
+            per_model[r["model"]] = int(r["n"])
+        min_n = min(per_model.values())
+        best_row = model_rows[0]  # already sorted by n DESC
+        result.append({
+            "subtype":          subtype,
+            "min_n_across_models": min_n,
+            "routing_ready":    min_n >= TARGET,
+            "threshold":        TARGET,
+            "runs_needed":      max(0, TARGET - min_n),
+            "current_leader":   best_row["model"],
+            "leader_success":   float(best_row["success_rate"]),
+            "leader_cost":      float(best_row["avg_cost_cents"]),
+            "leader_quality":   float(best_row["avg_quality"]) if best_row["avg_quality"] else None,
+            "per_model":        per_model,
+        })
+
+    ready   = [r for r in result if r["routing_ready"]]
+    pending = [r for r in result if not r["routing_ready"]]
+    return {
+        "generated_at":   datetime.utcnow().isoformat(),
+        "threshold":      TARGET,
+        "subtypes_ready": len(ready),
+        "subtypes_pending": len(pending),
+        "subtypes":       result,
+    }
+
 
 @app.get("/api/v1/progress")
 async def get_progress():
@@ -349,55 +433,100 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
     MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
                   "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
                   "google/gemini-2.0-flash-001"]
+
+    # Auto-detect subtype: if task_type contains '/' (e.g. 'coding/python'),
+    # split into base_type + subtype so the DB lookup works correctly.
+    effective_base = task_type
+    effective_subtype = task_subtype
+    if "/" in task_type and task_subtype is None:
+        parts = task_type.split("/", 1)
+        effective_base = parts[0]        # e.g. 'coding'
+        effective_subtype = task_type    # e.g. 'coding/python' (stored in task_subtype col)
+
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            # Try subtype-specific recommendation first
-            if task_subtype:
+            if effective_subtype:
+                # 1. Try subtype-specific data first
                 cur.execute("""
                     SELECT model, COUNT(*) AS tasks,
                         AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
-                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents
-                    FROM tasks WHERE task_type=%s AND task_subtype=%s
+                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
+                        AVG(quality_score) AS avg_quality
+                    FROM tasks
+                    WHERE task_type=%s AND task_subtype=%s
                     GROUP BY model HAVING COUNT(*) >= %s
-                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC, AVG(cost_cents) ASC
-                """, (task_type, task_subtype, min_tasks))
+                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
+                             AVG(quality_score) DESC NULLS LAST,
+                             AVG(cost_cents) ASC
+                """, (effective_base, effective_subtype, min_tasks))
                 rows = cur.fetchall()
-                
-                # Fall back to task_type if no subtype data
+
+                # 2. Fall back to category-level if no subtype data yet
                 if not rows:
                     cur.execute("""
                         SELECT model, COUNT(*) AS tasks,
                             AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
-                            AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents
+                            AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
+                            AVG(quality_score) AS avg_quality
                         FROM tasks WHERE task_type=%s
                         GROUP BY model HAVING COUNT(*) >= %s
-                        ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC, AVG(cost_cents) ASC
-                    """, (task_type, min_tasks))
+                        ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
+                                 AVG(quality_score) DESC NULLS LAST,
+                                 AVG(cost_cents) ASC
+                    """, (effective_base, min_tasks))
                     rows = cur.fetchall()
+                    if rows:
+                        # Label as category fallback so caller knows it's not subtype-specific
+                        return {
+                            "mode": "data-driven",
+                            "resolution": "category_fallback",
+                            "task_type": effective_base,
+                            "task_subtype": effective_subtype,
+                            "note": f"No subtype data yet for '{effective_subtype}' — using category '{effective_base}' signal",
+                            "recommended_model": dict(rows[0])["model"],
+                            "success_rate": round(float(rows[0]["success_rate"]), 4),
+                            "avg_cost_cents": round(float(rows[0]["avg_cost_cents"]), 4),
+                            "avg_duration_s": round(float(rows[0]["avg_duration"]), 1),
+                            "based_on_tasks": int(rows[0]["tasks"]),
+                            "all_candidates": [dict(r) for r in rows],
+                        }
             else:
                 cur.execute("""
                     SELECT model, COUNT(*) AS tasks,
                         AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
-                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents
+                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
+                        AVG(quality_score) AS avg_quality
                     FROM tasks WHERE task_type=%s
                     GROUP BY model HAVING COUNT(*) >= %s
-                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC, AVG(cost_cents) ASC
-                """, (task_type, min_tasks))
+                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
+                             AVG(quality_score) DESC NULLS LAST,
+                             AVG(cost_cents) ASC
+                """, (effective_base, min_tasks))
                 rows = cur.fetchall()
-    
+
     if not rows:
-        subtype_info = f" + {task_subtype}" if task_subtype else ""
-        return {"mode": "round-robin",
-                "reason": f"insufficient_data (need {min_tasks}+ tasks per model for '{task_type}{subtype_info}')",
-                "recommended_model": None, "pool": MODEL_POOL}
+        label = effective_subtype or effective_base
+        return {
+            "mode": "round-robin",
+            "reason": f"insufficient_data (need {min_tasks}+ tasks per model for '{label}')",
+            "recommended_model": None,
+            "pool": MODEL_POOL,
+        }
+
     best = dict(rows[0])
-    return {"mode": "data-driven", "task_type": task_type, "task_subtype": task_subtype,
-            "recommended_model": best["model"],
-            "success_rate": round(float(best["success_rate"]), 4),
-            "avg_cost_cents": round(float(best["avg_cost_cents"]), 4),
-            "avg_duration_s": round(float(best["avg_duration"]), 1),
-            "based_on_tasks": int(best["tasks"]),
-            "all_candidates": [dict(r) for r in rows]}
+    return {
+        "mode": "data-driven",
+        "resolution": "subtype" if effective_subtype else "category",
+        "task_type": effective_base,
+        "task_subtype": effective_subtype,
+        "recommended_model": best["model"],
+        "success_rate": round(float(best["success_rate"]), 4),
+        "avg_cost_cents": round(float(best["avg_cost_cents"]), 4),
+        "avg_duration_s": round(float(best["avg_duration"]), 1),
+        "avg_quality": round(float(best["avg_quality"]), 2) if best["avg_quality"] else None,
+        "based_on_tasks": int(best["tasks"]),
+        "all_candidates": [dict(r) for r in rows],
+    }
 
 @app.get("/api/v1/recommendations")
 async def get_recommendations():
