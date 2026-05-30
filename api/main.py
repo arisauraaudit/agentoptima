@@ -430,13 +430,21 @@ async def get_recent_tasks(limit: int = 20):
 
 @app.get("/api/v1/classify")
 async def classify_task_endpoint(text: str):
-    """Classify a task description into an AgentOptima subtype."""
+    """Classify a task description and score its complexity."""
     import sys
     sys.path.insert(0, '/app')
     try:
         from integration.task_classifier import classify_task
-        result = classify_task(text)
-        return {"input": text[:200], **result}
+        from integration.complexity_scorer import score_complexity
+        subtype_result = classify_task(text)
+        complexity_result = score_complexity(text)
+        return {
+            "input": text[:200],
+            "subtype": subtype_result["subtype"],
+            "category": subtype_result["category"],
+            "confidence": subtype_result["confidence"],
+            "complexity": complexity_result,
+        }
     except Exception as e:
         return {"input": text[:200], "subtype": "general", "category": "general",
                 "confidence": 0.3, "method": "fallback", "error": str(e)}
