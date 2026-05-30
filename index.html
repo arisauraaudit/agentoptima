@@ -572,7 +572,7 @@
         <!-- ── /Connect Your Agent ─────────────────────────────────────── -->
 
         <footer>
-            <p>AgentOptima v0.1.0 • Built by Aris • Continuous improvement</p>
+            <p>AgentOptima v0.6.0 • Built by Aris • Continuous improvement</p>
             <p style="margin-top: 0.5rem; font-size: 0.875rem;">
                 <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
                 <a href="/api/v1/docs">API Docs</a> •
@@ -602,20 +602,33 @@
         }
 
         async function fetchRankings() {
-            const rankingsUrl = API_BASE + '/rankings';
+            const rankingsUrl = API_BASE + '/rankings?include_subtypes=true';
             try {
                 const response = await fetch(rankingsUrl);
                 if (!response.ok) throw new Error('Failed to fetch rankings');
                 const data = await response.json();
-                return data.models || [];
+                return { models: data.models || [], subtypes: data.subtypes || [] };
             } catch (error) {
                 console.error('Rankings fetch error:', error);
-                return [];
+                return { models: [], subtypes: [] };
             }
         }
 
-        function renderRankings(models, routing) {
+        async function fetchSubtypeProgress() {
+            try {
+                const r = await fetch(API_BASE + '/subtype-progress');
+                if (!r.ok) return {};
+                const d = await r.json();
+                // Build map: subtype → { routing_ready, current_leader, leader_quality, runs_needed }
+                const map = {};
+                (d.subtypes || []).forEach(s => { map[s.subtype] = s; });
+                return map;
+            } catch(e) { return {}; }
+        }
+
+        function renderRankings(models, routing, subtypeRows, subtypeProgress) {
             routing = routing || {};
+            subtypeProgress = subtypeProgress || {};
             rankingsData = models;
             const container = document.getElementById('rankings-accordion');
 
@@ -623,6 +636,15 @@
                 container.innerHTML = '<div style="color:#64748b;padding:2rem;text-align:center">No model data yet — run the batch runner to start building data.</div>';
                 return;
             }
+
+            // Build subtype lookup: model → category → [subtype rows]
+            const subtypeMap = {};
+            (subtypeRows || []).forEach(s => {
+                if (!subtypeMap[s.model]) subtypeMap[s.model] = {};
+                const cat = s.category || 'general';
+                if (!subtypeMap[s.model][cat]) subtypeMap[s.model][cat] = [];
+                subtypeMap[s.model][cat].push(s);
+            });
 
             // Group rows by model
             const grouped = {};
@@ -680,6 +702,39 @@
                         const cCost    = (r.avg_cost_cents||0) < 0.1 ? '<$0.001' : '$' + ((r.avg_cost_cents||0)/100).toFixed(4);
                         const isTop    = routing[c] === modelId;
                         const topBadge = isTop ? `<span style="color:#10b981;font-size:0.75rem;font-weight:700">🎯 Active route</span>` : '';
+
+                        // Build nested subtype rows for this model+category
+                        const modelSubtypes = (subtypeMap[modelId] && subtypeMap[modelId][c]) || [];
+                        const subtypeHtml = modelSubtypes
+                            .sort((a,b) => (b.tasks_logged||0) - (a.tasks_logged||0))
+                            .map(st => {
+                                const stKey   = st.subtype;
+                                const stProg  = subtypeProgress[stKey] || {};
+                                const stReady = stProg.routing_ready;
+                                const isLeader = stProg.current_leader === modelId;
+                                const stRate  = ((st.success_rate||0)*100).toFixed(0);
+                                const stCost  = (st.avg_cost_cents||0) < 0.1 ? '<$0.001' : '$' + ((st.avg_cost_cents||0)/100).toFixed(4);
+                                const stQ     = st.avg_quality ? `<span style="color:#a78bfa;font-size:0.7rem">q=${st.avg_quality}</span>` : '';
+                                const routeBadge = stReady && isLeader
+                                    ? `<span style="color:#10b981;font-size:0.68rem;font-weight:700">🎯 routing</span>`
+                                    : stReady
+                                    ? `<span style="color:#475569;font-size:0.68rem">ready</span>`
+                                    : `<span style="color:#475569;font-size:0.68rem">${stProg.runs_needed||'?'} runs left</span>`;
+                                const stName  = stKey.split('/')[1] || stKey;
+                                return `
+                                <div style="display:grid;grid-template-columns:1fr auto auto auto auto auto;gap:0.5rem;align-items:center;
+                                    padding:0.3rem 1rem 0.3rem 2.5rem;
+                                    border-top:1px solid rgba(148,163,184,0.06);
+                                    background:rgba(0,0,0,0.15);font-size:0.8rem">
+                                    <span style="color:${col};opacity:0.75">↳ ${stName}</span>
+                                    <span style="color:${(st.success_rate||0)>=0.9?'#10b981':'#f59e0b'}">${stRate}%</span>
+                                    <span style="color:#94a3b8">${(st.avg_duration||0).toFixed(1)}s</span>
+                                    <span style="color:#f59e0b">${stCost}</span>
+                                    <span style="color:#64748b">${st.tasks_logged||0}</span>
+                                    <span style="display:flex;gap:0.4rem;align-items:center">${stQ}${routeBadge}</span>
+                                </div>`;
+                            }).join('');
+
                         return `
                         <div class="rank-cat-row" style="${isTop?'background:rgba(16,185,129,0.04)':''}">
                             <span style="background:rgba(0,0,0,0.25);color:${col};padding:3px 10px;border-radius:20px;font-weight:600;display:inline-block;text-align:center;white-space:nowrap">${c}</span>
@@ -688,7 +743,8 @@
                             <span class="rank-cat-col-cost" style="color:#f59e0b">${cCost}/task</span>
                             <span class="rank-cat-col-tasks" style="color:#64748b">${r.tasks_logged||0} tasks</span>
                             ${topBadge}
-                        </div>`;
+                        </div>
+                        ${subtypeHtml}`;
                     }).join('');
 
                 return `
@@ -793,10 +849,15 @@
                 return;
             }
 
-            // -- Step 2: Rankings (non-critical)
+            // -- Step 2: Rankings + subtypes (non-critical)
+            let _subtypeRows = [];
+            let _subtypeProgress = {};
             try {
-                rankingsData = await fetchRankings();
-                renderRankings(rankingsData);
+                const rankResult = await fetchRankings();
+                rankingsData = rankResult.models;
+                _subtypeRows = rankResult.subtypes || [];
+                _subtypeProgress = await fetchSubtypeProgress();
+                renderRankings(rankingsData, {}, _subtypeRows, _subtypeProgress);
                 const uniqueModels = new Set(rankingsData.map(m => m.model)).size;
                 document.getElementById('models-count').textContent = uniqueModels || status.models_tracked || '-';
             } catch (e) {
@@ -833,8 +894,8 @@
                         routing[c] = recResults[i].value.recommended_model;
                     }
                 });
-                // Re-render rankings with routing data baked in
-                renderRankings(rankingsData, routing);
+                // Re-render rankings with routing data + subtypes baked in
+                renderRankings(rankingsData, routing, _subtypeRows, _subtypeProgress);
             } catch(e) { console.error('Routing recommendations failed:', e); }
 
             // -- Step 6: Recent tasks feed (non-critical)
