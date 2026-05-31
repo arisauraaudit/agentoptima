@@ -211,15 +211,15 @@ async def get_status():
             cur.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1")
             latest = cur.fetchone()
     # Data source breakdown
+    # Source breakdown via notes column (agent_name is overwritten by auth to 'aris')
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT agent_name, COUNT(*) FROM tasks GROUP BY agent_name ORDER BY COUNT(*) DESC")
-            source_rows = cur.fetchall()
-    sources = {}
-    for agent, count in source_rows:
-        if "routerbench" in str(agent): sources["routerbench"] = sources.get("routerbench", 0) + count
-        elif "arena55k" in str(agent): sources["arena55k"] = sources.get("arena55k", 0) + count
-        else: sources["live"] = sources.get("live", 0) + count
+            cur.execute("SELECT COUNT(*) FROM tasks WHERE notes ILIKE '%source:routerbench%'")
+            rb_count = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM tasks WHERE notes ILIKE '%source:arena55k%'")
+            arena_count = cur.fetchone()[0]
+    live_count = total - rb_count - arena_count
+    sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
     return {"status": "running", "version": "0.8.0", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
@@ -315,8 +315,10 @@ async def get_subtype_progress():
                     ROUND(AVG(quality_score)::numeric,2) AS avg_quality
                 FROM tasks
                 WHERE task_subtype IS NOT NULL AND model = ANY(%s)
+                  AND task_subtype NOT ILIKE '%chinese%'
                 GROUP BY task_subtype, model
                 ORDER BY task_subtype, n DESC
+                LIMIT 2000
             """, (ACTIVE_POOL,))
             rows = cur.fetchall()
 
