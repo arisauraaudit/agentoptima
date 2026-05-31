@@ -115,7 +115,7 @@ async def lifespan(app: FastAPI):
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="0.8.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -196,7 +196,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "0.6.0"}
+    return {"status": "healthy", "version": "0.8.0"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -210,10 +210,21 @@ async def get_status():
             models = cur.fetchone()[0]
             cur.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1")
             latest = cur.fetchone()
-    return {"status": "running", "version": "0.6.0", "tasks_logged": total,
+    # Data source breakdown
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT agent_name, COUNT(*) FROM tasks GROUP BY agent_name ORDER BY COUNT(*) DESC")
+            source_rows = cur.fetchall()
+    sources = {}
+    for agent, count in source_rows:
+        if "routerbench" in str(agent): sources["routerbench"] = sources.get("routerbench", 0) + count
+        elif "arena55k" in str(agent): sources["arena55k"] = sources.get("arena55k", 0) + count
+        else: sources["live"] = sources.get("live", 0) + count
+    return {"status": "running", "version": "0.8.0", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
-            "storage": "postgresql (Railway managed)"}
+            "storage": "postgresql (Railway managed)",
+            "data_sources": sources}
 
 @app.get("/api/v1/models")
 async def get_models():

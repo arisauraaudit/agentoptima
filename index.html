@@ -453,7 +453,7 @@
             <div class="metric-card">
                 <div class="metric-value" id="tasks-count">Loading...</div>
                 <div class="metric-label">Tasks Logged</div>
-                <div class="metric-sub" id="storage-info"></div>
+                <div class="metric-sub" id="storage-info">400K+ across 3 sources</div>
             </div>
             <div class="metric-card">
                 <div class="metric-value" id="models-count">Loading...</div>
@@ -470,7 +470,8 @@
         <div class="section">
             <h2 class="section-title">Live Model Rankings</h2>
             <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — AgentOptima Score combines quality, reliability and cost efficiency across all task types.
+                <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — AgentOptima Score combines quality, reliability and cost efficiency across 400K+ real inference outcomes.
+                <span id="data-source-badges" style="margin-left:0.75rem"></span>
             </p>
             <div id="rankings-accordion">
                 <div style="color:#64748b;padding:1.5rem;text-align:center">Loading rankings…</div>
@@ -481,7 +482,7 @@
         <div class="section" id="routing-map-section">
             <h2 class="section-title">🗺️ Routing Map</h2>
             <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                Every task type routes to the best model — determined by real production data. Send a task type to <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/recommend</code> and get the optimal model instantly.
+                Every task type routes to the best model — backed by <strong style="color:#f1f5f9">400K+ inference outcomes</strong> from live benchmarks, LMSys Arena, and RouterBench (UC Berkeley). Send any task to <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/recommend</code> and get the optimal model instantly.
             </p>
             <div id="routing-map-container">
                 <div style="color:#64748b;padding:1.5rem;text-align:center">Loading routing map…</div>
@@ -574,7 +575,7 @@
         <!-- ── /Connect Your Agent ─────────────────────────────────────── -->
 
         <footer>
-            <p>AgentOptima v0.6.0 • Built by Aris • Continuous improvement</p>
+            <p>AgentOptima v0.8.0 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
             <p style="margin-top: 0.5rem; font-size: 0.875rem;">
                 <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
                 <a href="/api/v1/docs">API Docs</a> •
@@ -946,6 +947,17 @@
                 document.getElementById('status-text').textContent = '✓ API Connected';
                 document.getElementById('tasks-count').textContent = status.tasks_logged.toLocaleString();
                 document.getElementById('storage-info').textContent = status.storage;
+                // Data source badges
+                const src = status.data_sources || {};
+                const badgeEl = document.getElementById('data-source-badges');
+                if (badgeEl && Object.keys(src).length > 0) {
+                    const badge = (label, count, color) =>
+                        `<span style="background:rgba(0,0,0,0.3);color:${color};border:1px solid ${color}40;border-radius:12px;padding:2px 8px;font-size:0.7rem;font-weight:600;margin-right:4px">${label} ${(count||0).toLocaleString()}</span>`;
+                    badgeEl.innerHTML =
+                        badge('🔴 live', src.live, '#10b981') +
+                        badge('🟡 arena', src.arena55k, '#f59e0b') +
+                        badge('🔵 routerbench', src.routerbench, '#60a5fa');
+                }
                 document.getElementById('uptime-status').textContent = '✓ Online';
                 document.getElementById('uptime-details').textContent = `v${status.version}`;
             } catch (e) {
