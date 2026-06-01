@@ -875,14 +875,20 @@
                 const subtypeHtml = subtypes
                     .sort((a,b) => a.subtype.localeCompare(b.subtype))
                     .map(st => {
-                        const leader = st.current_leader || '';
+                        // For subtypes not yet routing-ready, fall back to the cost-aware
+                        // category-level recommendation (reflects v0.9.0 cost-aware routing)
+                        const rawLeader = st.current_leader || '';
                         const ready = st.routing_ready;
+                        const leader = ready ? rawLeader : (catRouting[cat] || rawLeader);
+                        const isFallback = !ready && catRouting[cat];
                         const stName = st.subtype.split('/')[1] || st.subtype;
                         const qualLabel = st.leader_quality ? `q=${st.leader_quality}` : '';
                         const costLabel = st.leader_cost ? `${st.leader_cost < 0.1 ? '<$0.001' : '$'+(st.leader_cost/100).toFixed(4)}/task` : '';
                         const statusDot = ready
                             ? `<span style="color:#10b981;font-size:0.7rem;font-weight:700">● LIVE</span>`
-                            : `<span style="color:#475569;font-size:0.7rem">${st.runs_needed} runs left</span>`;
+                            : isFallback
+                                ? `<span style="color:#f59e0b;font-size:0.7rem;font-weight:600">○ cat-routing</span>`
+                                : `<span style="color:#475569;font-size:0.7rem">${st.runs_needed} runs left</span>`;
                         return `
                         <div style="display:grid;grid-template-columns:180px 1fr auto auto auto;gap:0.75rem;align-items:center;
                             padding:0.45rem 1.25rem 0.45rem 2rem;
