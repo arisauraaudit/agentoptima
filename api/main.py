@@ -336,18 +336,21 @@ async def get_subtype_progress():
         for r in model_rows:
             per_model[r["model"]] = int(r["n"])
         min_n = min(per_model.values())
-        best_row = model_rows[0]  # already sorted by n DESC
+        # Use cost-aware ranking to pick the subtype leader (not just highest task count)
+        ranked = cost_aware_rank(model_rows, quality_tolerance=0.10)
+        best_row = ranked[0]
         result.append({
-            "subtype":          subtype,
+            "subtype":            subtype,
             "min_n_across_models": min_n,
-            "routing_ready":    min_n >= TARGET,
-            "threshold":        TARGET,
-            "runs_needed":      max(0, TARGET - min_n),
-            "current_leader":   best_row["model"],
-            "leader_success":   float(best_row["success_rate"]),
-            "leader_cost":      float(best_row["avg_cost_cents"]),
-            "leader_quality":   float(best_row["avg_quality"]) if best_row["avg_quality"] else None,
-            "per_model":        per_model,
+            "routing_ready":      min_n >= TARGET,
+            "threshold":          TARGET,
+            "runs_needed":        max(0, TARGET - min_n),
+            "current_leader":     best_row["model"],
+            "leader_value_score": best_row.get("value_score"),
+            "leader_success":     float(best_row["success_rate"]),
+            "leader_cost":        float(best_row.get("avg_cost_cents") or 0),
+            "leader_quality":     float(best_row["avg_quality"]) if best_row.get("avg_quality") else None,
+            "per_model":          per_model,
         })
 
     ready   = [r for r in result if r["routing_ready"]]

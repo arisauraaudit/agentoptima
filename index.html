@@ -831,19 +831,29 @@
                     byCategory[cat].push({ subtype, ...info });
                 });
             } else if (subtypeRows && subtypeRows.length > 0) {
-                // Fallback: derive from rankings subtype rows — pick best model per subtype
-                const stBest = {};
+                // Fallback: derive from rankings subtype rows — cost-aware ranking per subtype
+                // Group all model rows per subtype
+                const stGroups = {};
                 subtypeRows.forEach(r => {
-                    const st = r.subtype;
-                    if (!stBest[st] || r.tasks_logged > stBest[st].tasks_logged) stBest[st] = r;
+                    if (!stGroups[r.subtype]) stGroups[r.subtype] = [];
+                    stGroups[r.subtype].push(r);
                 });
-                Object.entries(stBest).forEach(([subtype, best]) => {
-                    const cat = best.category || subtype.split('/')[0];
+                Object.entries(stGroups).forEach(([subtype, rows]) => {
+                    // Cost-aware rank: find cheapest model within 10% of best success rate
+                    const TOLERANCE = 0.10;
+                    const bestSr = Math.max(...rows.map(r => parseFloat(r.success_rate || 0)));
+                    const minSr  = bestSr * (1 - TOLERANCE);
+                    const eligible = rows.filter(r => parseFloat(r.success_rate || 0) >= minSr);
+                    const winner   = eligible.sort((a, b) =>
+                        parseFloat(a.avg_cost_cents || 999) - parseFloat(b.avg_cost_cents || 999)
+                    )[0];
+                    const best = winner || rows[0];
+                    const cat  = best.category || subtype.split('/')[0];
                     if (!byCategory[cat]) byCategory[cat] = [];
                     byCategory[cat].push({
                         subtype,
-                        routing_ready: best.tasks_logged >= 10,
-                        runs_needed: Math.max(0, 10 - best.tasks_logged),
+                        routing_ready: rows.length > 1 && best.tasks_logged >= 10,
+                        runs_needed: Math.max(0, 10 - (best.tasks_logged || 0)),
                         current_leader: best.model,
                         leader_success: best.success_rate,
                         leader_cost: best.avg_cost_cents,
