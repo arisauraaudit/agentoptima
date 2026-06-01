@@ -1,4 +1,4 @@
-# AgentOptima API v0.5.0 — quality scoring + actionable recommendations
+# AgentOptima API v0.9.0 — cost-aware routing + quality scoring
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -86,7 +86,7 @@ def init_db():
                     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_subtype TEXT DEFAULT NULL
                 """)
             conn.commit()
-        print("✅ PostgreSQL ready (v0.6.0)")
+        print("✅ PostgreSQL ready (v0.9.0)")
     except Exception as e:
         print(f"⚠️  DB init warning: {e}")
 
@@ -111,11 +111,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 AgentOptima API v0.6.0 starting...")
+    print("🚀 AgentOptima API v0.9.0 starting...")
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="0.8.0", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="0.9.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -196,7 +196,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "0.8.0"}
+    return {"status": "healthy", "version": "0.9.0"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -220,7 +220,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "0.8.0", "tasks_logged": total,
+    return {"status": "running", "version": "0.9.0", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -463,9 +463,56 @@ async def classify_task_endpoint(text: str):
                 "confidence": 0.3, "method": "fallback", "error": str(e)}
 
 
+# ── Cost-Aware Ranking ─────────────────────────────────────────────────────────
+
+def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
+    """
+    Rerank model candidates using cost-aware scoring.
+
+    Algorithm:
+      1. Find the best success_rate among all candidates.
+      2. Mark models within `quality_tolerance` of that best rate as eligible.
+         (e.g. tolerance=0.10 means accept up to 10% lower success rate)
+      3. Among eligible models, pick the cheapest (lowest avg_cost_cents).
+      4. Ineligible models follow, sorted by success rate DESC.
+
+    Also adds `value_score` to each row:
+      value_score = success_rate x (quality/5) / log(1 + avg_cost_cents)
+    Higher = better quality per dollar spent.
+
+    With tolerance=0.0 this behaves identically to the old pure-quality sort.
+    """
+    import math
+    if not rows:
+        return rows
+
+    rows_out = [dict(r) for r in rows]
+    best_sr = max(float(r["success_rate"]) for r in rows_out)
+    min_sr = best_sr * (1.0 - quality_tolerance)
+
+    for r in rows_out:
+        sr = float(r["success_rate"])
+        cost = max(float(r.get("avg_cost_cents") or 0.001), 0.001)
+        quality = float(r.get("avg_quality") or 4.0)
+        # Higher = better quality efficiency per log-cost unit
+        r["value_score"] = round(sr * (quality / 5.0) / math.log1p(cost), 4)
+        r["within_tolerance"] = sr >= min_sr
+
+    eligible = sorted(
+        [r for r in rows_out if r["within_tolerance"]],
+        key=lambda r: float(r.get("avg_cost_cents") or 999)
+    )
+    ineligible = sorted(
+        [r for r in rows_out if not r["within_tolerance"]],
+        key=lambda r: -float(r["success_rate"])
+    )
+    return eligible + ineligible
+
+
 @app.get("/api/v1/recommend")
 async def get_recommendation(task_type: str = "general", task_subtype: str = None,
-                             min_tasks: int = 10, text: str = None):
+                             min_tasks: int = 10, text: str = None,
+                             quality_tolerance: float = 0.10):
     MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
                   "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
                   "google/gemini-2.0-flash-001"]
@@ -526,19 +573,23 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                     """, (effective_base, min_tasks))
                     rows = cur.fetchall()
                     if rows:
+                        rows = cost_aware_rank(rows, quality_tolerance)
                         # Label as category fallback so caller knows it's not subtype-specific
                         return {
                             "mode": "data-driven",
                             "resolution": "category_fallback",
+                            "scoring_mode": "cost_aware",
+                            "quality_tolerance": quality_tolerance,
                             "task_type": effective_base,
                             "task_subtype": effective_subtype,
                             "note": f"No subtype data yet for '{effective_subtype}' — using category '{effective_base}' signal",
-                            "recommended_model": dict(rows[0])["model"],
+                            "recommended_model": rows[0]["model"],
                             "success_rate": round(float(rows[0]["success_rate"]), 4),
                             "avg_cost_cents": round(float(rows[0]["avg_cost_cents"]), 4),
                             "avg_duration_s": round(float(rows[0]["avg_duration"]), 1),
+                            "value_score": rows[0].get("value_score"),
                             "based_on_tasks": int(rows[0]["tasks"]),
-                            "all_candidates": [dict(r) for r in rows],
+                            "all_candidates": rows,
                         }
             else:
                 cur.execute("""
@@ -563,19 +614,23 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
             "pool": MODEL_POOL,
         }
 
-    best = dict(rows[0])
+    rows = cost_aware_rank(rows, quality_tolerance)
+    best = rows[0]
     return {
         "mode": "data-driven",
         "resolution": "subtype" if effective_subtype else "category",
+        "scoring_mode": "cost_aware",
+        "quality_tolerance": quality_tolerance,
         "task_type": effective_base,
         "task_subtype": effective_subtype,
         "recommended_model": best["model"],
         "success_rate": round(float(best["success_rate"]), 4),
         "avg_cost_cents": round(float(best["avg_cost_cents"]), 4),
         "avg_duration_s": round(float(best["avg_duration"]), 1),
-        "avg_quality": round(float(best["avg_quality"]), 2) if best["avg_quality"] else None,
+        "avg_quality": round(float(best["avg_quality"]), 2) if best.get("avg_quality") else None,
+        "value_score": best.get("value_score"),
         "based_on_tasks": int(best["tasks"]),
-        "all_candidates": [dict(r) for r in rows],
+        "all_candidates": rows,
         "classification": classification_meta,
     }
 
