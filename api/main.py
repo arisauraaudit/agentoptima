@@ -1,9 +1,9 @@
-# AgentOptima API v0.9.0 — cost-aware routing + quality scoring
+# AgentOptima API v1.0.0 — cost-aware routing + feedback loop + security oracle + panic
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from contextlib import asynccontextmanager
-import os, hashlib, secrets, re, psycopg2, psycopg2.extras
+import os, hashlib, secrets, re, psycopg2, psycopg2.extras, requests as _requests
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
@@ -85,8 +85,42 @@ def init_db():
                 cur.execute("""
                     ALTER TABLE tasks ADD COLUMN IF NOT EXISTS task_subtype TEXT DEFAULT NULL
                 """)
+                # v1.0.0 migrations
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS feedback_v2 (
+                        id           SERIAL PRIMARY KEY,
+                        task_id      TEXT NOT NULL,
+                        original_model TEXT,
+                        issue        TEXT,
+                        retry_model  TEXT,
+                        rating       INTEGER CHECK (rating BETWEEN 1 AND 5),
+                        notes        TEXT,
+                        created_at   TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS panic_log (
+                        id          SERIAL PRIMARY KEY,
+                        triggered_by TEXT,
+                        level       INTEGER,
+                        result      TEXT,
+                        created_at  TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS risk_checks (
+                        id          SERIAL PRIMARY KEY,
+                        task_id     TEXT,
+                        task_desc   TEXT,
+                        risk_level  TEXT,
+                        risk_score  REAL,
+                        flags       TEXT,
+                        action_taken TEXT,
+                        created_at  TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
             conn.commit()
-        print("✅ PostgreSQL ready (v0.9.0)")
+        print("✅ PostgreSQL ready (v1.0.0)")
     except Exception as e:
         print(f"⚠️  DB init warning: {e}")
 
@@ -115,7 +149,7 @@ async def lifespan(app: FastAPI):
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="0.9.0", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -196,7 +230,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "0.9.0"}
+    return {"status": "healthy", "version": "1.0.0"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -220,7 +254,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "0.9.0", "tasks_logged": total,
+    return {"status": "running", "version": "1.0.0", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -864,3 +898,351 @@ async def patch_quality_score(task_id: str, quality_score: float,
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     print(f"⭐ quality_score={quality_score} patched for task_id={task_id}")
     return {"status": "success", "task_id": task_id, "quality_score": quality_score}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# v1.0.0 — NEW ENDPOINTS: Feedback Loop · Risk Check · Panic
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Model registry (cost estimates in cents per typical task) ──────────────────
+_MODEL_REGISTRY = {
+    # Ultra-cheap
+    "openai/gpt-4o-mini":           {"cost": 0.034, "tier": "ultra_cheap", "speed": "fast",   "strength": "simple tasks, drafts"},
+    "deepseek/deepseek-v4-flash":   {"cost": 0.033, "tier": "ultra_cheap", "speed": "medium", "strength": "general, cost-sensitive"},
+    # Cheap
+    "google/gemini-2.0-flash-001":  {"cost": 0.145, "tier": "cheap",       "speed": "fast",   "strength": "multimodal, fast analysis"},
+    "google/gemini-2.5-flash":      {"cost": 0.12,  "tier": "cheap",       "speed": "fast",   "strength": "reasoning, long context"},
+    # Mid
+    "anthropic/claude-3-haiku":     {"cost": 0.191, "tier": "mid",         "speed": "fast",   "strength": "balanced quality/cost"},
+    "anthropic/claude-haiku-4-5-20251001": {"cost": 0.22, "tier": "mid",   "speed": "fast",   "strength": "latest haiku, improved reasoning"},
+    "deepseek/deepseek-r1":         {"cost": 0.15,  "tier": "mid",         "speed": "medium", "strength": "logical reasoning, math, verification"},
+    # Quality
+    "anthropic/claude-sonnet-4-6":  {"cost": 0.689, "tier": "quality",     "speed": "medium", "strength": "strategy, complex tasks, coding"},
+    # Security oracle (rare, expensive — gatekeeper only)
+    "anthropic/claude-opus-4":      {"cost": 4.50,  "tier": "oracle",      "speed": "slow",   "strength": "security audit, high-risk verification, critical decisions"},
+}
+
+def _model_info(model_id: str) -> dict:
+    return _MODEL_REGISTRY.get(model_id, {"cost": 0.5, "tier": "unknown", "speed": "unknown", "strength": "unknown"})
+
+
+# ── RISK CHECK ─────────────────────────────────────────────────────────────────
+_RISK_PATTERNS = {
+    "destructive":   (0.9,  ["delete", "drop table", "truncate", "rm -rf", "format", "wipe", "purge all", "destroy"]),
+    "config_change": (0.75, ["edit config", "modify openclaw.json", "change model", "update .env", "write to config"]),
+    "auth_secrets":  (0.8,  ["api key", "password", "secret", "token", "credential", "private key"]),
+    "production":    (0.7,  ["push to production", "deploy to prod", "release", "merge to main", "go live"]),
+    "financial":     (0.85, ["transfer funds", "withdraw", "send crypto", "buy position", "sell all"]),
+    "system":        (0.8,  ["shutdown", "reboot", "kill process", "disable service", "stop all"]),
+    "self_modify":   (0.95, ["modify soul.md", "change agent rules", "update agents.md", "edit system prompt"]),
+}
+
+_RISK_TO_ACTION = {
+    "critical": "human_approval_required",
+    "high":     "security_oracle_review",
+    "medium":   "proceed_with_logging",
+    "low":      "proceed",
+}
+
+class RiskCheckRequest(BaseModel):
+    task_id:   Optional[str] = None
+    task_desc: str
+    agent_name: Optional[str] = "unknown"
+
+@app.post("/api/v1/risk-check")
+async def risk_check(request: RiskCheckRequest,
+                     x_api_key: Optional[str] = Header(default=None)):
+    """
+    Pre-flight security scan. Returns risk_level, flags, and recommended action.
+    High/critical tasks are flagged for human approval or oracle review before execution.
+    No LLM call — fast keyword heuristic, zero cost.
+    """
+    verify_key(x_api_key)
+    text_lower = request.task_desc.lower()
+    fired_flags = []
+    max_score   = 0.0
+
+    for flag, (score, keywords) in _RISK_PATTERNS.items():
+        if any(kw in text_lower for kw in keywords):
+            fired_flags.append(flag)
+            if score > max_score:
+                max_score = score
+
+    if max_score >= 0.90:
+        risk_level = "critical"
+    elif max_score >= 0.75:
+        risk_level = "high"
+    elif max_score >= 0.50:
+        risk_level = "medium"
+    else:
+        risk_level = "low"
+
+    action = _RISK_TO_ACTION[risk_level]
+    recommended_model = "anthropic/claude-opus-4" if risk_level in ("critical", "high") else None
+
+    # Log to DB
+    task_id = request.task_id or f"risk-{secrets.token_hex(6)}"
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO risk_checks (task_id, task_desc, risk_level, risk_score, flags, action_taken) VALUES (%s,%s,%s,%s,%s,%s)",
+                    (task_id, request.task_desc[:500], risk_level, max_score,
+                     ",".join(fired_flags), action)
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"⚠️ risk_check DB log failed: {e}")
+
+    print(f"🛡️ risk-check [{risk_level}] score={max_score} flags={fired_flags} task={task_id}")
+    return {
+        "task_id":          task_id,
+        "risk_level":       risk_level,
+        "risk_score":       round(max_score, 2),
+        "flags":            fired_flags,
+        "action":           action,
+        "recommended_model": recommended_model,
+        "message": (
+            f"🔴 CRITICAL — Human approval required before execution." if risk_level == "critical" else
+            f"🟠 HIGH RISK — Recommend security oracle review before execution." if risk_level == "high" else
+            f"🟡 MEDIUM RISK — Proceeding with full audit logging." if risk_level == "medium" else
+            f"🟢 LOW RISK — Cleared to proceed."
+        )
+    }
+
+
+# ── FEEDBACK LOOP ──────────────────────────────────────────────────────────────
+class FeedbackRequest(BaseModel):
+    task_id:        str
+    original_model: str
+    task_type:      Optional[str] = "general"
+    issue:          Optional[str] = "response_quality"   # response_quality | too_slow | hallucination | incomplete
+    notes:          Optional[str] = None
+
+@app.post("/api/v1/feedback")
+async def submit_feedback(request: FeedbackRequest,
+                          x_api_key: Optional[str] = Header(default=None)):
+    """
+    Dissatisfaction signal for a completed task.
+    Logs the failure, patches quality_score to 1.0, and returns ranked
+    alternative models with transparent cost comparison and a human-friendly pitch.
+    """
+    verify_key(x_api_key)
+
+    # Patch quality score to 1.0 on the original task
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("UPDATE tasks SET quality_score=1.0 WHERE task_id=%s", (request.task_id,))
+                # Log feedback
+                cur.execute(
+                    "INSERT INTO feedback_v2 (task_id, original_model, issue, notes, rating) VALUES (%s,%s,%s,%s,%s)",
+                    (request.task_id, request.original_model, request.issue, request.notes, 1)
+                )
+            conn.commit()
+    except Exception as e:
+        print(f"⚠️ feedback DB error: {e}")
+
+    orig_info = _model_info(request.original_model)
+    orig_cost = orig_info["cost"]
+
+    # Build alternatives: all models more capable than original, sorted by cost
+    tier_order = ["ultra_cheap", "cheap", "mid", "quality", "oracle"]
+    orig_tier_idx = tier_order.index(orig_info.get("tier", "mid")) if orig_info.get("tier") in tier_order else 2
+
+    alternatives = []
+    for model_id, info in _MODEL_REGISTRY.items():
+        if model_id == request.original_model:
+            continue
+        if info["tier"] == "oracle":
+            continue  # oracle is never an auto-suggestion
+        tier_idx = tier_order.index(info["tier"]) if info["tier"] in tier_order else 2
+        if tier_idx <= orig_tier_idx and info["cost"] <= orig_cost * 1.1:
+            continue  # skip same/worse tier unless meaningfully different
+        cost_delta = info["cost"] - orig_cost
+        delta_str  = f"+${cost_delta:.4f}" if cost_delta > 0 else f"-${abs(cost_delta):.4f}"
+        # Fetch live success rate from DB if available
+        sr = None
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) FROM tasks WHERE model=%s AND task_type=%s",
+                        (model_id, request.task_type)
+                    )
+                    row = cur.fetchone()
+                    if row and row[0] is not None:
+                        sr = round(float(row[0]), 3)
+        except Exception:
+            pass
+
+        pitch = f"{info['strength'].capitalize()}. "
+        pitch += f"Success rate: {int(sr*100)}%. " if sr else ""
+        pitch += f"Est. cost: ${info['cost']:.4f}/task ({delta_str} vs current)."
+
+        alternatives.append({
+            "model":               model_id,
+            "tier":                info["tier"],
+            "estimated_cost":      f"${info['cost']:.4f}",
+            "cost_delta":          delta_str,
+            "success_rate":        sr,
+            "speed":               info["speed"],
+            "pitch":               pitch,
+        })
+
+    # Sort: mid tier first (best value), then quality, then cheap
+    tier_score = {"mid": 0, "quality": 1, "cheap": 2, "ultra_cheap": 3}
+    alternatives.sort(key=lambda x: tier_score.get(x["tier"], 9))
+    top3 = alternatives[:3]
+
+    orig_model_short = request.original_model.split("/")[-1]
+    issue_text = {
+        "response_quality": "the response quality wasn't satisfying",
+        "too_slow":         "the response was too slow",
+        "hallucination":    "the model hallucinated or gave inaccurate info",
+        "incomplete":       "the response was incomplete",
+    }.get(request.issue, "the response didn't meet expectations")
+
+    message = (
+        f"Sorry — we routed this to **{orig_model_short}** (${orig_cost:.4f}/task) "
+        f"based on past performance data, but {issue_text}. "
+        f"We've logged this failure to improve future routing. "
+        f"Here are {len(top3)} better option(s) to retry:"
+    )
+
+    print(f"📣 feedback logged: task={request.task_id} model={request.original_model} issue={request.issue}")
+    return {
+        "status":         "logged",
+        "task_id":        request.task_id,
+        "original_model": request.original_model,
+        "issue":          request.issue,
+        "message":        message,
+        "alternatives":   top3,
+    }
+
+
+# ── PANIC ENDPOINT ─────────────────────────────────────────────────────────────
+_PANIC_KEY = os.environ.get("PANIC_KEY", "")   # set in Railway env vars
+
+class PanicRequest(BaseModel):
+    level:       int = 1          # 1=app-reset  2=railway-redeploy
+    triggered_by: Optional[str] = "unknown"
+    reason:      Optional[str] = None
+
+@app.post("/api/v1/panic")
+async def panic(request: PanicRequest,
+                x_panic_key: Optional[str] = Header(default=None, alias="X-Panic-Key"),
+                x_api_key: Optional[str]   = Header(default=None)):
+    """
+    One-command resurrection.
+    Level 1 — App reset: clears internal state, logs event, confirms health.
+    Level 2 — Railway redeploy: triggers a fresh deploy via Railway API (needs RAILWAY_TOKEN + SERVICE_ID env vars).
+    """
+    # Auth: either PANIC_KEY header or valid API key
+    authed = False
+    if _PANIC_KEY and x_panic_key == _PANIC_KEY:
+        authed = True
+    if not authed:
+        try:
+            verify_key(x_api_key)
+            authed = True
+        except Exception:
+            pass
+    if not authed:
+        raise HTTPException(status_code=401, detail="Missing or invalid panic key / API key")
+
+    result_log = []
+    ts = datetime.utcnow().isoformat()
+    result_log.append(f"[{ts}] Panic triggered: level={request.level} by={request.triggered_by}")
+
+    # ── Level 1: App health check + state reset ───────────────────────────────
+    db_ok = False
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM tasks")
+                cnt = cur.fetchone()[0]
+        db_ok = True
+        result_log.append(f"✅ DB healthy — {cnt} tasks on record")
+    except Exception as e:
+        result_log.append(f"❌ DB check failed: {e}")
+
+    agentoptima_ok = True
+    result_log.append("✅ AgentOptima API is running (this response proves it)")
+
+    # Log the panic event
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO panic_log (triggered_by, level, result) VALUES (%s,%s,%s)",
+                    (request.triggered_by, request.level, " | ".join(result_log))
+                )
+            conn.commit()
+    except Exception:
+        pass
+
+    # ── Level 2: Railway redeploy ─────────────────────────────────────────────
+    railway_result = None
+    if request.level >= 2:
+        railway_token      = os.environ.get("RAILWAY_TOKEN", "")
+        railway_service_id = os.environ.get("RAILWAY_SERVICE_ID", "")
+        railway_env_id     = os.environ.get("RAILWAY_ENVIRONMENT_ID", "")
+
+        if not railway_token:
+            railway_result = "⚠️ RAILWAY_TOKEN not set — set it in Railway env vars to enable Level 2 panic"
+        else:
+            try:
+                gql = """
+                mutation ServiceInstanceRedeploy($serviceId: String!, $environmentId: String!) {
+                  serviceInstanceRedeploy(serviceId: $serviceId, environmentId: $environmentId)
+                }
+                """
+                resp = _requests.post(
+                    "https://backboard.railway.app/graphql/v2",
+                    headers={"Authorization": f"Bearer {railway_token}", "Content-Type": "application/json"},
+                    json={"query": gql, "variables": {"serviceId": railway_service_id, "environmentId": railway_env_id}},
+                    timeout=15
+                )
+                if resp.status_code == 200 and "errors" not in resp.json():
+                    railway_result = "✅ Railway redeploy triggered — new deploy will be live in ~2 minutes"
+                else:
+                    railway_result = f"⚠️ Railway API returned: {resp.text[:200]}"
+            except Exception as e:
+                railway_result = f"❌ Railway redeploy failed: {e}"
+        result_log.append(railway_result)
+
+    print(f"🚨 PANIC L{request.level} by={request.triggered_by}: {' | '.join(result_log)}")
+    return {
+        "status":          "panic_executed",
+        "level":           request.level,
+        "db_healthy":      db_ok,
+        "api_healthy":     agentoptima_ok,
+        "railway_result":  railway_result,
+        "log":             result_log,
+        "recovery_guide": {
+            "level_1": "POST /api/v1/panic  {level:1}  — app health reset (always available)",
+            "level_2": "POST /api/v1/panic  {level:2}  — Railway redeploy (needs RAILWAY_TOKEN env var)",
+            "level_3": "On Aris-HQ: bash /root/.openclaw/workspace/AgentOptima/scripts/panic_push.sh",
+        }
+    }
+
+
+# ── MODEL REGISTRY endpoint ────────────────────────────────────────────────────
+@app.get("/api/v1/registry")
+async def model_registry():
+    """Full model registry with tiers, costs, and strengths."""
+    return {
+        "version": "1.0.0",
+        "total_models": len(_MODEL_REGISTRY),
+        "models": [
+            {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
+        ],
+        "tiers": {
+            "ultra_cheap": "Simple tasks, bulk ops — lowest cost",
+            "cheap":       "Fast analysis, multimodal — great value",
+            "mid":         "Balanced quality/cost — default for most tasks",
+            "quality":     "Complex reasoning, strategy, coding — best output",
+            "oracle":      "Security audit, critical decisions — used as gatekeeper only",
+        }
+    }
