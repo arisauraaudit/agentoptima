@@ -1246,3 +1246,114 @@ async def model_registry():
             "oracle":      "Security audit, critical decisions — used as gatekeeper only",
         }
     }
+
+
+# ── PUBLIC: Risk Preview (no auth, no DB write — safe for dashboard demo) ──────
+@app.get("/api/v1/risk-preview")
+async def risk_preview(text: str = ""):
+    """
+    Public risk classification for dashboard demo.
+    No auth required, no DB write. Pure keyword heuristic.
+    """
+    if not text or len(text.strip()) < 3:
+        return {"risk_level": "low", "risk_score": 0.0, "flags": [], "action": "proceed",
+                "message": "🟢 LOW RISK — Cleared to proceed."}
+
+    text_lower = text.lower().strip()
+    fired_flags = []
+    max_score = 0.0
+    for flag, (score, keywords) in _RISK_PATTERNS.items():
+        if any(kw in text_lower for kw in keywords):
+            fired_flags.append(flag)
+            if score > max_score:
+                max_score = score
+
+    if max_score >= 0.90:   risk_level = "critical"
+    elif max_score >= 0.75: risk_level = "high"
+    elif max_score >= 0.50: risk_level = "medium"
+    else:                   risk_level = "low"
+
+    action = _RISK_TO_ACTION[risk_level]
+
+    # Recommended model from registry (public tiers)
+    rec_model = None
+    for model_id, info in _MODEL_REGISTRY.items():
+        if risk_level in ("critical", "high") and info["tier"] == "oracle":
+            rec_model = model_id
+            break
+        elif risk_level in ("low", "medium") and info["tier"] == "mid":
+            rec_model = model_id
+            break
+
+    return {
+        "risk_level":        risk_level,
+        "risk_score":        round(max_score, 2),
+        "flags":             fired_flags,
+        "action":            action,
+        "recommended_model": rec_model,
+        "message": (
+            "🔴 CRITICAL — Human approval required before execution." if risk_level == "critical" else
+            "🟠 HIGH RISK — Security oracle review recommended." if risk_level == "high" else
+            "🟡 MEDIUM RISK — Proceed with full audit logging." if risk_level == "medium" else
+            "🟢 LOW RISK — Cleared to proceed."
+        )
+    }
+
+
+# ── PUBLIC: Recent risk checks feed (no sensitive data) ────────────────────────
+@app.get("/api/v1/gate/recent")
+async def recent_gate_decisions(limit: int = 10):
+    """
+    Public feed of recent gate decisions for the dashboard.
+    Returns risk level + action only — no full task descriptions for privacy.
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        risk_level, risk_score, flags, action_taken,
+                        LEFT(task_desc, 60) AS task_preview,
+                        created_at
+                    FROM risk_checks
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """, (min(limit, 50),))
+                rows = cur.fetchall()
+        return {
+            "decisions": [dict(r) for r in rows],
+            "total": len(rows)
+        }
+    except Exception as e:
+        return {"decisions": [], "total": 0, "error": str(e)}
+
+
+# ── PUBLIC: Gate stats summary ─────────────────────────────────────────────────
+@app.get("/api/v1/gate/stats")
+async def gate_stats():
+    """Aggregate gate stats: total checks, blocked count, by risk level."""
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        risk_level,
+                        COUNT(*) AS count,
+                        AVG(risk_score) AS avg_score
+                    FROM risk_checks
+                    GROUP BY risk_level
+                    ORDER BY avg_score DESC
+                """)
+                by_level = cur.fetchall()
+                cur.execute("SELECT COUNT(*) AS total FROM risk_checks")
+                total = cur.fetchone()["total"]
+                cur.execute("SELECT COUNT(*) AS total FROM feedback_v2")
+                feedback_total = cur.fetchone()["total"]
+        return {
+            "total_checks":    total,
+            "feedback_signals": feedback_total,
+            "by_level":        [dict(r) for r in by_level],
+            "blocked_count":   next((r["count"] for r in by_level if r["risk_level"] == "critical"), 0),
+        }
+    except Exception as e:
+        return {"total_checks": 0, "blocked_count": 0, "by_level": [], "error": str(e)}

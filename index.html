@@ -489,6 +489,74 @@
         </div>
 
 
+        <!-- ── Routing Gate ────────────────────────────────────────── -->
+        <div class="section" id="gate-section">
+            <h2 class="section-title">🛡️ Routing Gate</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                Every task passes through <strong style="color:#f1f5f9">3 checks</strong> before a sub-agent spawns:
+                risk scan → model selection → cost estimate.
+                Critical tasks are <strong style="color:#ef4444">blocked automatically</strong>.
+            </p>
+
+            <!-- Gate Stats -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem" id="gate-stats-grid">
+                <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#10b981" id="gate-total">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Total Checks</div>
+                </div>
+                <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#ef4444" id="gate-blocked">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Blocked</div>
+                </div>
+                <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#f59e0b" id="gate-high">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">High Risk</div>
+                </div>
+                <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#818cf8" id="gate-feedback">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Feedback Signals</div>
+                </div>
+            </div>
+
+            <!-- Live Demo -->
+            <div style="background:rgba(15,23,42,0.8);border:1px solid rgba(148,163,184,0.15);border-radius:16px;padding:1.75rem;margin-bottom:2rem">
+                <p style="color:#e2e8f0;font-weight:600;margin-bottom:1rem;font-size:0.95rem">⚡ Try the Gate Live</p>
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem">
+                    <input
+                        id="gate-demo-input"
+                        type="text"
+                        placeholder="Describe a task... e.g. \"build a Python parser\" or \"delete all data\""
+                        style="flex:1;min-width:240px;background:rgba(30,41,59,0.9);border:1px solid rgba(148,163,184,0.2);border-radius:10px;padding:0.7rem 1rem;color:#f1f5f9;font-size:0.9rem;font-family:inherit;outline:none;transition:border-color 0.2s"
+                        onfocus="this.style.borderColor='#10b981'"
+                        onblur="this.style.borderColor='rgba(148,163,184,0.2)'"
+                        onkeydown="if(event.key==='Enter') runGateDemo()"
+                    />
+                    <button
+                        onclick="runGateDemo()"
+                        style="background:#10b981;color:#0f172a;border:none;border-radius:10px;padding:0.7rem 1.5rem;font-weight:700;font-size:0.9rem;cursor:pointer;font-family:inherit;transition:all 0.2s;white-space:nowrap"
+                        onmouseover="this.style.background='#059669'"
+                        onmouseout="this.style.background='#10b981'"
+                    >Check Risk</button>
+                </div>
+                <!-- Quick examples -->
+                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.25rem">
+                    <span style="color:#475569;font-size:0.78rem;margin-right:0.25rem;line-height:2">Try:</span>
+                    <button onclick="gateQuick('build a Python function to parse JSON')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">build a JSON parser</button>
+                    <button onclick="gateQuick('delete all tasks from the database')" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">delete all database tasks</button>
+                    <button onclick="gateQuick('design the go-to-market strategy')" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">design go-to-market strategy</button>
+                    <button onclick="gateQuick('push to production without testing')" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">push to production</button>
+                </div>
+                <div id="gate-demo-result" style="display:none"></div>
+            </div>
+
+            <!-- Recent Gate Decisions -->
+            <p style="color:#64748b;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem">Recent Gate Decisions</p>
+            <div id="gate-recent-feed" style="display:flex;flex-direction:column;gap:0.4rem">
+                <div style="color:#475569;font-size:0.85rem;padding:1rem;text-align:center">Loading gate history…</div>
+            </div>
+        </div>
+        <!-- ── /Routing Gate ───────────────────────────────────────── -->
+
         <div class="section" id="recent-tasks-section">
             <h2 class="section-title">⚡ Live Task Feed</h2>
             <p style="color:#94a3b8;margin-bottom:1.5rem;font-size:0.95rem" class="section-desc">Most recent tasks logged across all agents and models. Updates every 15s.</p>
@@ -526,7 +594,7 @@
         <!-- ── /Connect Your Agent ─────────────────────────────────────── -->
 
         <footer>
-            <p>AgentOptima v0.8.0 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
+            <p>AgentOptima v1.0.0 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
             <p style="margin-top: 0.5rem; font-size: 0.875rem;">
                 <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
                 <a href="/api/v1/docs">API Docs</a> •
@@ -1008,6 +1076,9 @@
                 renderRecentTasks(recent);
             } catch(e) { console.error('Recent tasks failed:', e); }
 
+            // -- Step 7: Gate stats + recent decisions (non-critical)
+            try { await loadGateData(); } catch(e) { console.error('Gate data failed:', e); }
+
             lastRefresh = new Date();
         }
 
@@ -1245,6 +1316,128 @@ print("Best model for coding:", recommend("coding"))`;
             if (e.key === 'Enter') handleRegister();
         });
         // ── /Onboarding ───────────────────────────────────────────────────────
+
+        // ── Gate functions ───────────────────────────────────────────────────────────────
+
+        async function loadGateData() {
+            // Stats
+            try {
+                const stats = await fetchAPI('/gate/stats');
+                document.getElementById('gate-total').textContent   = (stats.total_checks   || 0).toLocaleString();
+                document.getElementById('gate-blocked').textContent = (stats.blocked_count  || 0).toLocaleString();
+                document.getElementById('gate-feedback').textContent= (stats.feedback_signals || 0).toLocaleString();
+                const high = (stats.by_level || []).find(r => r.risk_level === 'high');
+                document.getElementById('gate-high').textContent = high ? parseInt(high.count).toLocaleString() : '0';
+            } catch(e) {}
+
+            // Recent decisions
+            try {
+                const recent = await fetchAPI('/gate/recent?limit=12');
+                renderGateFeed(recent.decisions || []);
+            } catch(e) {}
+        }
+
+        function renderGateFeed(decisions) {
+            const container = document.getElementById('gate-recent-feed');
+            if (!decisions.length) {
+                container.innerHTML = '<div style="color:#475569;font-size:0.85rem;padding:1rem;text-align:center">No gate decisions yet — will populate as tasks run.</div>';
+                return;
+            }
+            const riskStyle = {
+                low:      { bg:'rgba(16,185,129,0.08)',  border:'rgba(16,185,129,0.2)',  color:'#10b981', emoji:'🟢' },
+                medium:   { bg:'rgba(245,158,11,0.08)',  border:'rgba(245,158,11,0.2)',  color:'#f59e0b', emoji:'🟡' },
+                high:     { bg:'rgba(249,115,22,0.08)',  border:'rgba(249,115,22,0.2)',  color:'#f97316', emoji:'🟠' },
+                critical: { bg:'rgba(239,68,68,0.08)',   border:'rgba(239,68,68,0.2)',   color:'#ef4444', emoji:'🔴' },
+            };
+            container.innerHTML = decisions.map(d => {
+                const s   = riskStyle[d.risk_level] || riskStyle.low;
+                const age = d.created_at ? timeAgo(d.created_at) : '';
+                const flags = (d.flags && d.flags.length) ? d.flags.split(',').map(f =>
+                    `<span style="background:rgba(148,163,184,0.1);color:#94a3b8;border-radius:4px;padding:1px 6px;font-size:0.68rem">${f.trim()}</span>`
+                ).join(' ') : '';
+                const preview = d.task_preview ? d.task_preview.substring(0,55) + (d.task_preview.length>55?'…':'') : '—';
+                const actionColor = d.action_taken === 'human_approval_required' ? '#ef4444' :
+                                    d.action_taken === 'security_oracle_review'   ? '#f97316' :
+                                    d.action_taken === 'proceed_with_logging'     ? '#f59e0b' : '#10b981';
+                return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.65rem 1rem;
+                    background:${s.bg};border:1px solid ${s.border};border-radius:10px;flex-wrap:wrap">
+                    <span style="font-size:1rem;flex-shrink:0">${s.emoji}</span>
+                    <span style="color:#e2e8f0;font-size:0.82rem;flex:1;min-width:140px">${preview}</span>
+                    <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center">
+                        ${flags}
+                        <span style="color:${actionColor};font-size:0.72rem;font-weight:600;white-space:nowrap">${(d.action_taken||'').replace(/_/g,' ')}</span>
+                        <span style="color:#475569;font-size:0.72rem;white-space:nowrap">${age}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function gateQuick(text) {
+            document.getElementById('gate-demo-input').value = text;
+            runGateDemo();
+        }
+
+        async function runGateDemo() {
+            const input  = document.getElementById('gate-demo-input');
+            const result = document.getElementById('gate-demo-result');
+            const text   = input.value.trim();
+            if (!text) return;
+
+            result.style.display = 'block';
+            result.innerHTML = '<div style="color:#64748b;font-size:0.85rem;padding:0.75rem">Scanning…</div>';
+
+            try {
+                const enc  = encodeURIComponent(text);
+                const data = await fetchAPI(`/risk-preview?text=${enc}`);
+
+                const riskColor = {
+                    low:'#10b981', medium:'#f59e0b', high:'#f97316', critical:'#ef4444'
+                }[data.risk_level] || '#94a3b8';
+                const riskBg = {
+                    low:'rgba(16,185,129,0.08)', medium:'rgba(245,158,11,0.08)',
+                    high:'rgba(249,115,22,0.08)', critical:'rgba(239,68,68,0.08)'
+                }[data.risk_level] || 'rgba(148,163,184,0.08)';
+                const riskBorder = {
+                    low:'rgba(16,185,129,0.25)', medium:'rgba(245,158,11,0.25)',
+                    high:'rgba(249,115,22,0.25)', critical:'rgba(239,68,68,0.25)'
+                }[data.risk_level] || 'rgba(148,163,184,0.25)';
+
+                const flagsHtml = (data.flags || []).length
+                    ? data.flags.map(f => `<span style="background:rgba(148,163,184,0.1);color:#94a3b8;border-radius:4px;padding:2px 8px;font-size:0.75rem">${f}</span>`).join(' ')
+                    : '<span style="color:#475569;font-size:0.78rem">none</span>';
+
+                const recModel = data.recommended_model
+                    ? `<div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid rgba(148,163,184,0.1)">
+                        <span style="color:#64748b;font-size:0.78rem">Recommended model: </span>
+                        <code style="color:#818cf8;font-size:0.82rem">${data.recommended_model.split('/').pop()}</code>
+                       </div>`
+                    : '';
+
+                const blocked = data.risk_level === 'critical';
+
+                result.innerHTML = `
+                <div style="background:${riskBg};border:1px solid ${riskBorder};border-radius:12px;padding:1.25rem">
+                    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+                        <span style="font-size:1.4rem">${{low:'🟢',medium:'🟡',high:'🟠',critical:'🔴'}[data.risk_level]||'⚪'}</span>
+                        <div>
+                            <span style="color:${riskColor};font-weight:700;font-size:1rem;text-transform:uppercase">${data.risk_level} risk</span>
+                            <span style="color:#64748b;font-size:0.8rem;margin-left:0.75rem">score: ${data.risk_score}</span>
+                        </div>
+                        ${blocked ? '<span style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3);border-radius:6px;padding:2px 10px;font-size:0.78rem;font-weight:700;margin-left:auto">🚫 BLOCKED</span>' : ''}
+                    </div>
+                    <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.75rem">${data.message}</p>
+                    <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap">
+                        <span style="color:#64748b;font-size:0.78rem">Flags:</span>
+                        ${flagsHtml}
+                    </div>
+                    ${recModel}
+                </div>`;
+            } catch(e) {
+                result.innerHTML = '<div style="color:#ef4444;font-size:0.85rem;padding:0.5rem">Error contacting API</div>';
+            }
+        }
+
+        // ── /Gate functions ───────────────────────────────────────────────────────────────
 
         // Initialize
         refresh();
