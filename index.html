@@ -444,7 +444,9 @@
             .rankings-table td { padding: 1rem; font-size: 0.875rem; }
         }
         @media (max-width: 480px) {
-            #cm-stats-grid { grid-template-columns: 1fr 1fr 1fr !important; }
+            #cm-stats-grid { grid-template-columns: 1fr 1fr 1fr !important; gap: 0.5rem !important; }
+            #cm-stats-grid > div { padding: 0.75rem 0.5rem !important; }
+            #cm-stats-grid > div > div:first-child { font-size: 1.2rem !important; }
         }
         @media (max-width: 640px) {
             #cm-feature-grid { grid-template-columns: 1fr !important; }
@@ -593,7 +595,7 @@
             </p>
 
             <!-- Stats -->
-            <div id="cm-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem">
+            <div id="cm-stats-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem">
                 <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
                     <div style="font-size:1.8rem;font-weight:800;color:#10b981">Up to 65%</div>
                     <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Cost Reduction</div>
