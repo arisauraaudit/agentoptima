@@ -296,14 +296,15 @@ ACTIVE_POOL = [
 # Tighter = only models close to the best success rate are eligible.
 # Looser = cheap models can win even with a lower success rate.
 TASK_TOLERANCES = {
-    "math":     0.05,   # correctness is binary — strictest
-    "security": 0.05,   # no room for quality slip
-    "coding":   0.08,   # bugs matter — tight
-    "strategy": 0.10,   # balanced default
-    "data":     0.10,   # balanced default
-    "research": 0.12,   # summaries have acceptable variance
-    "general":  0.15,   # relaxed
-    "writing":  0.20,   # style variance acceptable — most relaxed
+    "math":          0.05,   # correctness is binary — strictest
+    "security":      0.05,   # no room for quality slip
+    "coding":        0.08,   # bugs matter — tight
+    "orchestration": 0.08,   # most critical — must understand + delegate accurately
+    "strategy":      0.10,   # balanced default
+    "data":          0.10,   # balanced default
+    "research":      0.12,   # summaries have acceptable variance
+    "general":       0.15,   # relaxed
+    "writing":       0.20,   # style variance acceptable — most relaxed
 }
 
 def get_task_tolerance(task_type: str, override: float = None) -> float:
