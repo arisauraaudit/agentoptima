@@ -287,9 +287,9 @@ ACTIVE_POOL = [
     "deepseek/deepseek-v4-flash",
     "openai/gpt-4o-mini",
     "google/gemini-2.0-flash-001",
-    "google/gemini-2.5-flash",
     "anthropic/claude-haiku-4.5",
-    "deepseek/deepseek-r1",
+    "openai/o3-mini",
+    "anthropic/claude-3.5-haiku",
 ]
 
 # ── Per-task-type quality tolerance ───────────────────────────────────────────
@@ -930,11 +930,11 @@ _MODEL_REGISTRY = {
     "deepseek/deepseek-v4-flash":   {"cost": 0.033, "tier": "ultra_cheap", "speed": "medium", "strength": "general, cost-sensitive"},
     # Cheap
     "google/gemini-2.0-flash-001":  {"cost": 0.145, "tier": "cheap",       "speed": "fast",   "strength": "multimodal, fast analysis"},
-    "google/gemini-2.5-flash":      {"cost": 0.12,  "tier": "cheap",       "speed": "fast",   "strength": "reasoning, long context"},
     # Mid
     "anthropic/claude-3-haiku":     {"cost": 0.191, "tier": "mid",         "speed": "fast",   "strength": "balanced quality/cost"},
-    "anthropic/claude-haiku-4.5":             {"cost": 0.22, "tier": "mid",   "speed": "fast",   "strength": "latest haiku, improved reasoning"},
-    "deepseek/deepseek-r1":         {"cost": 0.15,  "tier": "mid",         "speed": "medium", "strength": "logical reasoning, math, verification"},
+    "anthropic/claude-haiku-4.5":   {"cost": 0.22,  "tier": "mid",         "speed": "fast",   "strength": "latest haiku, improved reasoning"},
+    "anthropic/claude-3.5-haiku":   {"cost": 0.20,  "tier": "mid",         "speed": "fast",   "strength": "next-gen haiku, strong all-round"},
+    "openai/o3-mini":               {"cost": 0.40,  "tier": "mid",         "speed": "medium", "strength": "math, reasoning, coding precision"},
     # Quality
     "anthropic/claude-sonnet-4-6":  {"cost": 0.689, "tier": "quality",     "speed": "medium", "strength": "strategy, complex tasks, coding"},
     # Security oracle (rare, expensive — gatekeeper only)
