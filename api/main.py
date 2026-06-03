@@ -262,9 +262,7 @@ async def get_status():
 
 @app.get("/api/v1/models")
 async def get_models():
-    MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
-                  "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
-                  "google/gemini-2.0-flash-001"]
+    MODEL_POOL = ACTIVE_POOL
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
@@ -289,7 +287,30 @@ ACTIVE_POOL = [
     "deepseek/deepseek-v4-flash",
     "openai/gpt-4o-mini",
     "google/gemini-2.0-flash-001",
+    "google/gemini-2.5-flash",
+    "anthropic/claude-haiku-4-5-20251001",
+    "deepseek/deepseek-r1",
 ]
+
+# ── Per-task-type quality tolerance ───────────────────────────────────────────
+# Tighter = only models close to the best success rate are eligible.
+# Looser = cheap models can win even with a lower success rate.
+TASK_TOLERANCES = {
+    "math":     0.05,   # correctness is binary — strictest
+    "security": 0.05,   # no room for quality slip
+    "coding":   0.08,   # bugs matter — tight
+    "strategy": 0.10,   # balanced default
+    "data":     0.10,   # balanced default
+    "research": 0.12,   # summaries have acceptable variance
+    "general":  0.15,   # relaxed
+    "writing":  0.20,   # style variance acceptable — most relaxed
+}
+
+def get_task_tolerance(task_type: str, override: float = None) -> float:
+    """Return the quality tolerance for a given task type."""
+    if override is not None:
+        return override
+    return TASK_TOLERANCES.get(task_type, 0.10)
 
 @app.get("/api/v1/rankings")
 async def get_rankings(include_subtypes: bool = False):
@@ -403,9 +424,7 @@ async def get_progress():
     """Per-model, per-category task counts vs target (10) for data-driven routing."""
     TARGET = 10
     CATEGORIES = ["coding", "research", "strategy", "writing", "data", "general", "security", "math"]
-    MODEL_POOL  = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
-                   "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
-                   "google/gemini-2.0-flash-001"]
+    MODEL_POOL  = ACTIVE_POOL
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
@@ -549,10 +568,10 @@ def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
 @app.get("/api/v1/recommend")
 async def get_recommendation(task_type: str = "general", task_subtype: str = None,
                              min_tasks: int = 10, text: str = None,
-                             quality_tolerance: float = 0.10):
-    MODEL_POOL = ["anthropic/claude-sonnet-4-6", "anthropic/claude-3-haiku",
-                  "deepseek/deepseek-v4-flash", "openai/gpt-4o-mini",
-                  "google/gemini-2.0-flash-001"]
+                             quality_tolerance: float = None):
+    MODEL_POOL = ACTIVE_POOL
+    # Use per-task-type tolerance unless caller explicitly overrides
+    effective_tolerance = get_task_tolerance(task_type, quality_tolerance)
 
     # Auto-classify from text if provided and task_type is still default
     classification_meta = None
@@ -610,13 +629,13 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                     """, (effective_base, min_tasks))
                     rows = cur.fetchall()
                     if rows:
-                        rows = cost_aware_rank(rows, quality_tolerance)
+                        rows = cost_aware_rank(rows, effective_tolerance)
                         # Label as category fallback so caller knows it's not subtype-specific
                         return {
                             "mode": "data-driven",
                             "resolution": "category_fallback",
                             "scoring_mode": "cost_aware",
-                            "quality_tolerance": quality_tolerance,
+                            "quality_tolerance": effective_tolerance,
                             "task_type": effective_base,
                             "task_subtype": effective_subtype,
                             "note": f"No subtype data yet for '{effective_subtype}' — using category '{effective_base}' signal",
@@ -651,13 +670,13 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
             "pool": MODEL_POOL,
         }
 
-    rows = cost_aware_rank(rows, quality_tolerance)
+    rows = cost_aware_rank(rows, effective_tolerance)
     best = rows[0]
     return {
         "mode": "data-driven",
         "resolution": "subtype" if effective_subtype else "category",
         "scoring_mode": "cost_aware",
-        "quality_tolerance": quality_tolerance,
+        "quality_tolerance": effective_tolerance,
         "task_type": effective_base,
         "task_subtype": effective_subtype,
         "recommended_model": best["model"],
