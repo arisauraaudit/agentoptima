@@ -16,13 +16,14 @@
             min-height: 100vh;
             line-height: 1.6;
             padding: 2rem;
+            overflow-x: hidden;
         }
         @media (max-width: 640px) {
             body { padding: 1rem; }
         }
         .container { max-width: 1200px; margin: 0 auto; width: 100%; }
         @media (max-width: 640px) {
-            .container { padding: 0; }
+            .container { padding: 0; max-width: 100vw; }
         }
         
         .hero {
@@ -85,7 +86,7 @@
         }
         @media (max-width: 640px) {
             .metrics-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr;
                 gap: 0.75rem;
                 margin: 1.5rem 0;
             }
@@ -442,6 +443,12 @@
             .rankings-table th,
             .rankings-table td { padding: 1rem; font-size: 0.875rem; }
         }
+        @media (max-width: 480px) {
+            #cm-stats-grid { grid-template-columns: 1fr 1fr 1fr !important; }
+        }
+        @media (max-width: 640px) {
+            #cm-feature-grid { grid-template-columns: 1fr !important; }
+        }
     </style>
 </head>
 <body>
@@ -481,11 +488,11 @@
         </div>
 
         <!-- Routing Stats Bar -->
-        <div id="routing-stats-bar" style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;margin:1rem 0 2rem;font-size:0.82rem;color:#64748b">
-            <span>🟢 <span id="stat-cheap-pct">78%</span> routed to cheap models</span>
-            <span>💰 <span id="stat-saved-today">$0.15</span> saved today</span>
-            <span>⚡ <span id="stat-total-routed">9</span> messages routed</span>
-            <span>🧠 Sonnet only for strategy & security</span>
+        <div id="routing-stats-bar" style="display:flex;flex-wrap:wrap;gap:0.75rem 1.25rem;justify-content:center;margin:0.75rem 0 1.5rem;font-size:0.8rem;color:#64748b">
+            <span style="white-space:nowrap">🟢 <span id="stat-cheap-pct">78%</span> routed to cheap models</span>
+            <span style="white-space:nowrap">💰 <span id="stat-saved-today">$0.15</span> saved today</span>
+            <span style="white-space:nowrap">⚡ <span id="stat-total-routed">9</span> messages routed</span>
+            <span style="white-space:nowrap">🧠 Sonnet only for strategy & security</span>
         </div>
 
         <div class="section">
@@ -586,7 +593,7 @@
             </p>
 
             <!-- Stats -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem">
+            <div id="cm-stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem">
                 <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
                     <div style="font-size:1.8rem;font-weight:800;color:#10b981">Up to 65%</div>
                     <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Cost Reduction</div>
@@ -602,7 +609,7 @@
             </div>
 
             <!-- Feature Breakdown -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem">
+            <div id="cm-feature-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem">
                 <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
                     <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">⚡ Automatic</div>
                     <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Fires silently when context crosses threshold. No commands, no user action.</p>
@@ -625,7 +632,7 @@
                     <span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>
                     <span style="color:rgba(255,255,255,0.3);font-size:0.78rem;margin-left:0.5rem">POST /api/v1/context/prune</span>
                 </div>
-                <pre style="padding:1.25rem;font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.75);overflow-x:auto;margin:0;font-family:'JetBrains Mono','Fira Code',monospace"><span style="color:#10b981">POST</span> <span style="color:#818cf8">/api/v1/context/prune</span>
+                <pre style="padding:1.25rem;font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.75);overflow-x:auto;margin:0;max-width:100%;word-break:break-all;font-family:'JetBrains Mono','Fira Code',monospace"><span style="color:#10b981">POST</span> <span style="color:#818cf8">/api/v1/context/prune</span>
 {
   <span style="color:#f59e0b">"session_id"</span>: <span style="color:#34d399">"your-session"</span>,
   <span style="color:#f59e0b">"current_tokens"</span>: <span style="color:#f472b6">54000</span>,
