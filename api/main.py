@@ -1439,6 +1439,82 @@ async def context_stats():
     }
 
 
+# ── Adaptive Context Threshold ──────────────────────────────────────────────────
+
+class ContextAnalyzeRequest(BaseModel):
+    session_id:    str
+    token_history: list  # token count at each message, e.g. [4000, 8200, 12800]
+    strategy:      str = "adaptive"
+
+@app.post("/api/v1/context/analyze")
+async def context_analyze(
+    req: ContextAnalyzeRequest,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key")
+):
+    """
+    Adaptive Context Threshold — learns from your actual session token growth.
+    Instead of a hardcoded 60K threshold, computes the optimal prune point
+    based on where YOUR cost curve starts inflecting.
+
+    Returns a personalized threshold recommendation.
+    """
+    MIN_THRESHOLD  = 20_000
+    MAX_THRESHOLD  = 120_000
+    SAFETY_MARGIN  = 0.95    # prune 5% before inflection
+    HEADROOM_MSGS  = 15      # fallback: 15 messages of headroom
+
+    history = [int(t) for t in req.token_history if t > 0]
+
+    if len(history) < 3:
+        return {
+            "recommended_threshold": 60_000,
+            "growth_rate_per_msg":   3_000,
+            "inflection_point":      None,
+            "msgs_until_threshold":  None,
+            "strategy":              "fallback",
+            "reasoning":             "Not enough history (need ≥3 msgs) — using balanced default",
+        }
+
+    # Compute per-message growth deltas
+    deltas = [history[i] - history[i-1] for i in range(1, len(history))]
+    avg_growth = sum(deltas) / len(deltas)
+
+    # Find inflection: where delta growth rate first exceeds 20% above avg
+    inflection = None
+    for i in range(1, len(deltas)):
+        if deltas[i] > avg_growth * 1.20:
+            # Inflection at the token count where this spike starts
+            inflection = history[i]
+            break
+
+    if inflection:
+        threshold = int(max(MIN_THRESHOLD, min(MAX_THRESHOLD, inflection * SAFETY_MARGIN)))
+        reasoning = (f"Growth rate {avg_growth:.0f} tokens/msg. "
+                     f"Cost curve inflects at {inflection:,} tokens — "
+                     f"threshold set {int((1-SAFETY_MARGIN)*100)}% below inflection.")
+    else:
+        # No clear inflection — use headroom heuristic
+        threshold = int(max(MIN_THRESHOLD, min(MAX_THRESHOLD, avg_growth * HEADROOM_MSGS)))
+        reasoning = (f"No clear inflection found. "
+                     f"Growth rate {avg_growth:.0f} tokens/msg × {HEADROOM_MSGS} msgs headroom "
+                     f"= {threshold:,} token threshold.")
+
+    # Estimate msgs until threshold from current position
+    current = history[-1] if history else 0
+    msgs_remaining = max(0, int((threshold - current) / avg_growth)) if avg_growth > 0 else None
+
+    return {
+        "recommended_threshold": threshold,
+        "growth_rate_per_msg":   round(avg_growth, 0),
+        "inflection_point":      inflection,
+        "msgs_until_threshold":  msgs_remaining,
+        "current_tokens":        current,
+        "strategy":              "adaptive",
+        "reasoning":             reasoning,
+        "vs_default":            f"{'Better' if threshold != 60_000 else 'Same as'} balanced default (60K). Your personalized threshold: {threshold:,}.",
+    }
+
+
 @app.get("/api/v1/gate/stats")
 async def gate_stats():
     """Aggregate gate stats: total checks, blocked count, by risk level."""
