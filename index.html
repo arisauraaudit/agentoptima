@@ -602,7 +602,7 @@
         <!-- ── /Connect Your Agent ─────────────────────────────────────── -->
 
         <footer>
-            <p>AgentOptima v1.0.1 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
+            <p>AgentOptima v1.0.2 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
             <p style="margin-top: 0.5rem; font-size: 0.875rem;">
                 <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
                 <a href="/api/v1/docs">API Docs</a> •
@@ -926,27 +926,28 @@
                             : isFallback
                                 ? `<span style="color:#f59e0b;font-size:0.7rem;font-weight:600">○ cat-routing</span>`
                                 : `<span style="color:#475569;font-size:0.7rem">${st.runs_needed} runs left</span>`;
+                        const costLabelShort = st.leader_cost ? (st.leader_cost < 0.1 ? '<$0.001' : '$'+(st.leader_cost/100).toFixed(4)) : '';
                         return `
-                        <div style="display:grid;grid-template-columns:180px 1fr auto auto auto;gap:0.75rem;align-items:center;
-                            padding:0.45rem 1.25rem 0.45rem 2rem;
+                        <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.5fr) auto auto auto;gap:0.5rem;align-items:center;
+                            padding:0.4rem 1rem 0.4rem 1.5rem;
                             border-top:1px solid rgba(148,163,184,0.06);
-                            background:rgba(0,0,0,0.12)">
-                            <span style="color:${col};opacity:0.8;font-size:0.82rem">↳ ${stName}</span>
-                            <span style="color:${providerColour(leader)};font-weight:600;font-size:0.85rem">${providerTag(leader)} ${shortName(leader)}</span>
-                            <span style="color:#a78bfa;font-size:0.75rem">${qualLabel}</span>
-                            <span style="color:#f59e0b;font-size:0.75rem">${costLabel}</span>
-                            ${statusDot}
+                            background:rgba(0,0,0,0.12);min-width:0">
+                            <span style="color:${col};opacity:0.8;font-size:0.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${stName}</span>
+                            <span style="color:${providerColour(leader)};font-weight:600;font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${providerTag(leader)} ${shortName(leader)}</span>
+                            <span style="color:#a78bfa;font-size:0.72rem;white-space:nowrap">${qualLabel}</span>
+                            <span style="color:#f59e0b;font-size:0.72rem;white-space:nowrap">${costLabelShort}</span>
+                            <span style="white-space:nowrap">${statusDot}</span>
                         </div>`;
                     }).join('');
 
                 return `
                 <div style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.12);border-radius:12px;margin-bottom:0.6rem;overflow:hidden">
-                    <div style="display:grid;grid-template-columns:140px 1fr auto;gap:1rem;align-items:center;
-                        padding:0.75rem 1.25rem;">
-                        <span style="background:rgba(0,0,0,0.3);color:${col};padding:4px 14px;border-radius:20px;
-                            font-weight:700;font-size:0.85rem;text-align:center">${cat}</span>
+                    <div style="display:grid;grid-template-columns:auto 1fr auto;gap:0.75rem;align-items:center;
+                        padding:0.65rem 1rem;">
+                        <span style="background:rgba(0,0,0,0.3);color:${col};padding:3px 12px;border-radius:20px;
+                            font-weight:700;font-size:0.82rem;text-align:center;white-space:nowrap">${cat}</span>
                         ${catModelHtml}
-                        <span style="color:#475569;font-size:0.75rem">${subtypes.length} subtype${subtypes.length!==1?'s':''}</span>
+                        <span style="color:#475569;font-size:0.72rem;white-space:nowrap">${subtypes.length} subtypes</span>
                     </div>
                     ${subtypeHtml}
                 </div>`;
