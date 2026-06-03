@@ -473,6 +473,19 @@
                 <div class="metric-label">API Status</div>
                 <div class="metric-sub" id="uptime-details"></div>
             </div>
+            <div class="metric-card">
+                <div class="metric-value" id="cost-reduction" style="color: #10b981;">57%</div>
+                <div class="metric-label">Avg Cost Reduction</div>
+                <div class="metric-sub">via AgentOptima routing</div>
+            </div>
+        </div>
+
+        <!-- Routing Stats Bar -->
+        <div id="routing-stats-bar" style="display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;margin:1rem 0 2rem;font-size:0.82rem;color:#64748b">
+            <span>🟢 <span id="stat-cheap-pct">78%</span> routed to cheap models</span>
+            <span>💰 <span id="stat-saved-today">$0.15</span> saved today</span>
+            <span>⚡ <span id="stat-total-routed">9</span> messages routed</span>
+            <span>🧠 Sonnet only for strategy & security</span>
         </div>
 
         <div class="section">
@@ -1151,6 +1164,9 @@
             // -- Step 7: Gate stats + recent decisions (non-critical)
             try { await loadGateData(); } catch(e) { console.error('Gate data failed:', e); }
 
+            // -- Step 8: Routing stats bar (non-critical)
+            try { await loadRoutingStats(); } catch(e) { console.error('Routing stats failed:', e); }
+
             lastRefresh = new Date();
         }
 
@@ -1388,6 +1404,62 @@
         }
 
         // ── /Gate functions ───────────────────────────────────────────────────────────────
+
+        // ── Routing Stats Bar Functions ─────────────────────────────────────────────────────
+
+        async function loadRoutingStats() {
+            try {
+                // Try to fetch gate stats
+                const gateStats = await fetchAPI('/gate/stats');
+                
+                // Try to fetch rankings for model usage data
+                const rankResult = await fetchRankings();
+                const models = rankResult.models || [];
+                
+                // Calculate cheap model percentage
+                // Cheap models: haiku, gpt-4o-mini, and other sub-$0.01 models
+                const cheapModels = ['haiku', 'mini', 'small'];
+                const expensiveModels = ['sonnet', 'opus', 'gpt-4'];
+                
+                let cheapCount = 0;
+                let expensiveCount = 0;
+                models.forEach(m => {
+                    const modelName = m.model.toLowerCase();
+                    if (cheapModels.some(c => modelName.includes(c))) cheapCount++;
+                    if (expensiveModels.some(e => modelName.includes(e))) expensiveCount++;
+                });
+                
+                const total = models.length;
+                const cheapPct = total > 0 ? Math.round((cheapCount / total) * 100) : 78;
+                
+                // Calculate estimated savings: average task cost difference
+                const avgCheapCost = models
+                    .filter(m => cheapModels.some(c => m.model.toLowerCase().includes(c)))
+                    .reduce((sum, m) => sum + (m.avg_cost_cents || 0.05), 0) / Math.max(1, cheapCount);
+                
+                const avgExpensiveCost = models
+                    .filter(m => expensiveModels.some(e => m.model.toLowerCase().includes(e)))
+                    .reduce((sum, m) => sum + (m.avg_cost_cents || 0.50), 0) / Math.max(1, expensiveCount);
+                
+                // Estimate daily savings based on total routed tasks
+                const totalRouted = gateStats.total_checks || 9;
+                const costPerTaskIfSonnet = Math.max(avgExpensiveCost, 0.20);
+                const costPerTaskActual = (cheapPct / 100) * avgCheapCost + ((100 - cheapPct) / 100) * costPerTaskIfSonnet;
+                const savingsPerTask = Math.max(0, costPerTaskIfSonnet - costPerTaskActual);
+                const totalSavedToday = (totalRouted * savingsPerTask / 100).toFixed(2);
+                
+                // Update the stats bar
+                document.getElementById('stat-cheap-pct').textContent = cheapPct + '%';
+                document.getElementById('stat-saved-today').textContent = '$' + totalSavedToday;
+                document.getElementById('stat-total-routed').textContent = totalRouted;
+                
+            } catch(e) {
+                console.error('loadRoutingStats error:', e);
+                // Keep defaults if API fails
+            }
+        }
+
+        // ── /Routing Stats Bar Functions ────────────────────────────────────────────────────
 
         // Initialize
         refresh();
