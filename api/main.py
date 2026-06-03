@@ -1349,6 +1349,96 @@ async def recent_gate_decisions(limit: int = 10):
 
 
 # ── PUBLIC: Gate stats summary ─────────────────────────────────────────────────
+# ── Adaptive Context Manager ──────────────────────────────────────────────────
+
+class ContextPruneRequest(BaseModel):
+    session_id:       str
+    current_tokens:   int
+    message_count:    int
+    strategy:         str = "balanced"   # aggressive | balanced | minimal
+    preserve_last_n:  int = 5
+
+@app.post("/api/v1/context/prune")
+async def context_prune(
+    req: ContextPruneRequest,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key")
+):
+    """
+    Adaptive Context Manager — tells caller how to prune their session context.
+    Returns pruning strategy + estimated token savings + cost savings.
+
+    Strategies:
+      - aggressive: fire at 30K tokens, compress to ~5K
+      - balanced:   fire at 60K tokens, compress to ~15K
+      - minimal:    fire at 100K tokens, compress to ~30K
+    """
+    THRESHOLDS = {
+        "aggressive": {"fire_at": 30_000,  "target": 5_000},
+        "balanced":   {"fire_at": 60_000,  "target": 15_000},
+        "minimal":    {"fire_at": 100_000, "target": 30_000},
+    }
+    SONNET_INPUT_PER_TOKEN = 3.00 / 1_000_000  # $3 per 1M input tokens
+
+    cfg = THRESHOLDS.get(req.strategy, THRESHOLDS["balanced"])
+    should_prune = req.current_tokens >= cfg["fire_at"]
+    tokens_saved = max(0, req.current_tokens - cfg["target"]) if should_prune else 0
+
+    # Cost saved = tokens pruned * Sonnet input price * msgs until next prune
+    # (pruned tokens no longer travel in context on every future message)
+    msgs_until_next_prune = max(1, (cfg["fire_at"] - cfg["target"]) // max(1, req.current_tokens // max(1, req.message_count)))
+    cost_saved_cents = tokens_saved * SONNET_INPUT_PER_TOKEN * msgs_until_next_prune * 100
+
+    return {
+        "should_prune":        should_prune,
+        "strategy":            req.strategy,
+        "current_tokens":      req.current_tokens,
+        "threshold":           cfg["fire_at"],
+        "target_tokens":       cfg["target"] if should_prune else req.current_tokens,
+        "tokens_to_prune":     tokens_saved,
+        "estimated_cost_saved_cents": round(cost_saved_cents, 4),
+        "preserve_last_n_messages": req.preserve_last_n,
+        "instructions": (
+            f"Summarize conversation history older than last {req.preserve_last_n} messages "
+            f"into a 200-word bullet-point context block. "
+            f"Strip all tool outputs except final results. "
+            f"Target: {cfg['target']:,} tokens total context."
+        ) if should_prune else "Context healthy — no pruning needed.",
+        "message": (
+            f"Pruning recommended: {req.current_tokens:,} tokens → ~{cfg['target']:,} tokens. "
+            f"Estimated saving: {cost_saved_cents:.2f}¢ over next ~{msgs_until_next_prune} messages."
+        ) if should_prune else f"Context at {req.current_tokens:,}/{cfg['fire_at']:,} tokens — healthy.",
+    }
+
+@app.get("/api/v1/context/stats")
+async def context_stats():
+    """Returns threshold config for all pruning strategies — useful for dashboard."""
+    SONNET_MONTHLY = 3.00 / 1_000_000 * 30 * 20  # 20 msgs/day, 30 days
+    return {
+        "strategies": {
+            "aggressive": {
+                "fires_at_tokens": 30_000,
+                "compresses_to":   5_000,
+                "monthly_saving_estimate": f"${SONNET_MONTHLY * 25_000 * 100:.0f}",
+                "best_for": "High-volume agents, cost-critical",
+            },
+            "balanced": {
+                "fires_at_tokens": 60_000,
+                "compresses_to":   15_000,
+                "monthly_saving_estimate": f"${SONNET_MONTHLY * 45_000 * 100:.0f}",
+                "best_for": "Most users — default",
+            },
+            "minimal": {
+                "fires_at_tokens": 100_000,
+                "compresses_to":   30_000,
+                "monthly_saving_estimate": f"${SONNET_MONTHLY * 70_000 * 100:.0f}",
+                "best_for": "Long research sessions needing full history",
+            },
+        },
+        "sonnet_input_price_per_1m": "$3.00",
+        "insight": "Context bloat is the #1 hidden cost driver in AI chat. Pruning at 60K tokens saves ~70% of input costs on long sessions.",
+    }
+
+
 @app.get("/api/v1/gate/stats")
 async def gate_stats():
     """Aggregate gate stats: total checks, blocked count, by risk level."""
