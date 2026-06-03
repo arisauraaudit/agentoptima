@@ -288,7 +288,7 @@ ACTIVE_POOL = [
     "openai/gpt-4o-mini",
     "google/gemini-2.0-flash-001",
     "google/gemini-2.5-flash",
-    "anthropic/claude-haiku-4-5-20251001",
+    "anthropic/claude-haiku-4.5",
     "deepseek/deepseek-r1",
 ]
 
@@ -933,7 +933,7 @@ _MODEL_REGISTRY = {
     "google/gemini-2.5-flash":      {"cost": 0.12,  "tier": "cheap",       "speed": "fast",   "strength": "reasoning, long context"},
     # Mid
     "anthropic/claude-3-haiku":     {"cost": 0.191, "tier": "mid",         "speed": "fast",   "strength": "balanced quality/cost"},
-    "anthropic/claude-haiku-4-5-20251001": {"cost": 0.22, "tier": "mid",   "speed": "fast",   "strength": "latest haiku, improved reasoning"},
+    "anthropic/claude-haiku-4.5":             {"cost": 0.22, "tier": "mid",   "speed": "fast",   "strength": "latest haiku, improved reasoning"},
     "deepseek/deepseek-r1":         {"cost": 0.15,  "tier": "mid",         "speed": "medium", "strength": "logical reasoning, math, verification"},
     # Quality
     "anthropic/claude-sonnet-4-6":  {"cost": 0.689, "tier": "quality",     "speed": "medium", "strength": "strategy, complex tasks, coding"},
