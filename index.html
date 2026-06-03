@@ -565,6 +565,70 @@
         </div>
         <!-- ── /Routing Gate ───────────────────────────────────────── -->
 
+        <!-- ── Adaptive Context Manager ─────────────────────────────────────── -->
+        <div class="section" id="context-manager-section">
+            <h2 class="section-title">🧹 Adaptive Context Manager</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                Long conversations get expensive fast. Most AI platforms let context grow unbounded — you pay Sonnet prices on every token, every message, forever. AgentOptima automatically compresses old context before it costs you. <strong style="color:#f1f5f9">Zero config. Invisible to your users.</strong>
+            </p>
+
+            <!-- Stats -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem">
+                <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#10b981">Up to 65%</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Cost Reduction</div>
+                </div>
+                <div style="background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#818cf8">60K tokens</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Prune Threshold</div>
+                </div>
+                <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#f59e0b">Zero Config</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Setup Required</div>
+                </div>
+            </div>
+
+            <!-- Feature Breakdown -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem">
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
+                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">⚡ Automatic</div>
+                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Fires silently when context crosses threshold. No commands, no user action.</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
+                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">🎯 Precise</div>
+                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Keeps last 6 messages intact. Summarizes older history into a 200-word bullet block.</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
+                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">📊 Measurable</div>
+                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Every compression logged. See exactly how much you saved per session.</p>
+                </div>
+            </div>
+
+            <!-- Code Snippet -->
+            <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:1.5rem">
+                <div style="background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);padding:0.6rem 1rem;display:flex;align-items:center;gap:0.4rem">
+                    <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                    <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+                    <span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>
+                    <span style="color:rgba(255,255,255,0.3);font-size:0.78rem;margin-left:0.5rem">POST /api/v1/context/prune</span>
+                </div>
+                <pre style="padding:1.25rem;font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.75);overflow-x:auto;margin:0;font-family:'JetBrains Mono','Fira Code',monospace"><span style="color:#10b981">POST</span> <span style="color:#818cf8">/api/v1/context/prune</span>
+{
+  <span style="color:#f59e0b">"session_id"</span>: <span style="color:#34d399">"your-session"</span>,
+  <span style="color:#f59e0b">"current_tokens"</span>: <span style="color:#f472b6">54000</span>,
+  <span style="color:#f59e0b">"strategy"</span>: <span style="color:#34d399">"balanced"</span>
+}
+<span style="color:rgba(255,255,255,0.3)">// response</span>
+→ { <span style="color:#f59e0b">"should_prune"</span>: <span style="color:#60a5fa">true</span>, <span style="color:#f59e0b">"tokens_to_prune"</span>: <span style="color:#f472b6">39000</span>, <span style="color:#f59e0b">"estimated_cost_saved_cents"</span>: <span style="color:#f472b6">8.42</span> }</pre>
+            </div>
+
+            <!-- Callout -->
+            <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:1.25rem;font-size:0.9rem;color:#94a3b8;line-height:1.6">
+                💡 <strong style="color:#10b981">Power users save up to 65%</strong> on monthly inference costs. Regular users save 17%. Light users: zero overhead — the manager simply stays silent.
+            </div>
+        </div>
+        <!-- ── /Adaptive Context Manager ────────────────────────────────────── -->
+
         <div class="section" id="recent-tasks-section">
             <h2 class="section-title">⚡ Live Task Feed</h2>
             <p style="color:#94a3b8;margin-bottom:1.5rem;font-size:0.95rem" class="section-desc">Most recent tasks logged across all agents and models. Updates every 15s.</p>
