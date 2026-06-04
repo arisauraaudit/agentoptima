@@ -575,7 +575,7 @@
         <!-- ── /Routing Intelligence ──────────────────────────────────────── -->
 
         <div class="section">
-            <h2 class="section-title">Live Model Rankings</h2>
+            <h2 class="section-title">🏆 Live Model Rankings</h2>
             <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
                 <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — AgentOptima Score combines quality, reliability and cost efficiency across 400K+ real inference outcomes.
             </p>
@@ -814,11 +814,8 @@ setInterval(loadOrchestratorData, 60000);
 async function loadEscalationData() {
     try {
         // Fetch escalation insights from API
-        const resp = await fetch('https://agentoptima.ai/api/v1/escalation/insights', {
-            headers: {
-                'X-API-Key': 'ao-41727e957d734ef638903180293af0d6171efda7373902e6'
-            }
-        });
+        // Uses public gate/stats endpoint (no auth required)
+        const resp = await fetch('https://agentoptima.ai/api/v1/escalation/public');
         
         if (!resp.ok) {
             console.log('Escalation API not yet available (expected on fresh deploy)');
@@ -828,21 +825,26 @@ async function loadEscalationData() {
         const data = await resp.json();
         
         // Update stats
-        const totalEscalations = data.per_model_escalation_rate.reduce((sum, m) => sum + (m.escalation_count || 0), 0);
+        const totalEscalations = data.total_escalations != null
+            ? data.total_escalations
+            : (data.per_model_escalation_rate || []).reduce((sum, m) => sum + (m.escalation_count || 0), 0);
         document.getElementById('total-escalations').textContent = totalEscalations.toLocaleString();
         document.getElementById('pre-routing-saves').textContent = (data.pre_routing_saves || 0).toLocaleString();
         
         // Top escalating model
-        if (data.per_model_escalation_rate.length > 0) {
+        if (data.per_model_escalation_rate && data.per_model_escalation_rate.length > 0) {
             const topModel = data.per_model_escalation_rate[0].from_model;
             document.getElementById('top-escalation-model').textContent = topModel.split('/').pop().split('-').slice(0, 2).join(' ');
         }
         
-        // Success rate
-        const successfulEscalations = data.last_5_events.filter(e => e.success_after).length;
-        const successRate = data.last_5_events.length > 0 
-            ? ((successfulEscalations / data.last_5_events.length) * 100).toFixed(0) + '%'
-            : '--';
+        // Success rate — use server-computed field if available, else compute from last_5_events
+        let successRate = '--';
+        if (data.escalation_success_rate != null) {
+            successRate = (data.escalation_success_rate * 100).toFixed(0) + '%';
+        } else if (data.last_5_events && data.last_5_events.length > 0) {
+            const successfulEscalations = data.last_5_events.filter(e => e.success_after).length;
+            successRate = ((successfulEscalations / data.last_5_events.length) * 100).toFixed(0) + '%';
+        }
         document.getElementById('escalation-success-rate').textContent = successRate;
         
         // Per-model grid
@@ -1076,7 +1078,7 @@ setInterval(loadEscalationData, 30000);
 
         <!-- ── Connect Your Agent — COMING SOON (security audit in progress) ── -->
         <div class="section" id="connect-section">
-            <h2 class="section-title">Connect Your Agent</h2>
+            <h2 class="section-title">🔌 Connect Your Agent</h2>
             <p style="color:#94a3b8;margin-bottom:2rem;font-size:1.05rem" class="section-desc">External agent access is coming soon.</p>
 
             <div style="background:rgba(30,41,59,0.9);border:1px solid rgba(148,163,184,0.15);border-radius:16px;padding:3rem 2.5rem;max-width:680px;text-align:center" class="register-panel">
@@ -1398,8 +1400,8 @@ setInterval(loadEscalationData, 30000);
                 const col = catColour[cat] || '#64748b';
                 const catModel = catRouting[cat];
                 const catModelHtml = catModel
-                    ? `<span style="color:${providerColour(catModel)};font-weight:600;font-size:0.85rem">${providerTag(catModel)} ${shortName(catModel)}</span>`
-                    : `<span style="color:#475569;font-size:0.8rem">mixed</span>`;
+                    ? `<span style="color:${providerColour(catModel)};font-weight:600;font-size:0.85rem;text-align:right">${providerTag(catModel)} ${shortName(catModel)}</span>`
+                    : `<span style="color:#475569;font-size:0.8rem;text-align:right">mixed</span>`;
 
                 const subtypes = byCategory[cat] || [];
                 const subtypeHtml = subtypes
@@ -1426,7 +1428,7 @@ setInterval(loadEscalationData, 30000);
                             border-top:1px solid rgba(148,163,184,0.06);
                             background:rgba(0,0,0,0.12);min-width:0">
                             <span style="color:${col};opacity:0.8;font-size:0.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${stName}</span>
-                            <span style="color:${providerColour(leader)};font-weight:600;font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${providerTag(leader)} ${shortName(leader)}</span>
+                            <span style="color:${providerColour(leader)};font-weight:600;font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;justify-self:end">${providerTag(leader)} ${shortName(leader)}</span>
                             <span style="color:#a78bfa;font-size:0.72rem;white-space:nowrap">${qualLabel}</span>
                             <span style="color:#f59e0b;font-size:0.72rem;white-space:nowrap">${costLabelShort}</span>
                             <span style="white-space:nowrap">${statusDot}</span>

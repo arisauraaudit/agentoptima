@@ -1,4 +1,4 @@
-# AgentOptima API v1.0.4 — cost_per_success metric + /efficiency endpoint + enhanced routing
+# AgentOptima API v1.1.1 — cost_per_success metric + /efficiency endpoint + enhanced routing + bug fixes
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -209,7 +209,7 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 AgentOptima API v0.9.0 starting...")
+    print("🚀 AgentOptima API v1.1.1 starting...")
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
@@ -248,16 +248,11 @@ async def dashboard():
 async def register_agent(request: RegisterRequest):
     """Public endpoint — register a new agent and receive an API key."""
     # Validate agent_name: alphanumeric + hyphens, 3-32 chars
-    if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9\-]{1,30}[a-zA-Z0-9]', request.agent_name) \
-            and not re.fullmatch(r'[a-zA-Z0-9]{3,32}', request.agent_name):
+    # Validate agent_name: alphanumeric + hyphens, 3-32 chars (single combined check)
+    if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9\-]{1,30}[a-zA-Z0-9]|[a-zA-Z0-9]{3,32}', request.agent_name):
         raise HTTPException(
             status_code=422,
             detail="agent_name must be 3-32 characters, alphanumeric and hyphens only"
-        )
-    if len(request.agent_name) < 3 or len(request.agent_name) > 32:
-        raise HTTPException(
-            status_code=422,
-            detail="agent_name must be between 3 and 32 characters"
         )
     # Generate secure API key
     api_key  = "ao-" + secrets.token_hex(24)
@@ -2029,7 +2024,7 @@ async def registry_with_benchmarks():
         })
 
     return {
-        "version": "1.0.5",
+        "version": "1.1.1",
         "total_models": len(models_with_bench),
         "models": models_with_bench,
         "note": "Benchmarks updated daily via /api/v1/recalibrate/orchestrator",
@@ -2040,7 +2035,7 @@ async def registry_with_benchmarks():
 # ORCHESTRABENCH ENDPOINTS (v1.1.0)
 # ══════════════════════════════════════════════════════════════════════════════
 
-import json as _json_mod
+import json
 
 class BenchmarkSubmitRequest(BaseModel):
     benchmark: str
@@ -2251,7 +2246,7 @@ async def log_escalation_event(
                     request.task_id,
                     request.from_model,
                     request.to_model,
-                    json.dumps(request.signals) if request.signals else None,
+                    json.dumps(request.signals) if request.signals else '[]',
                     request.task_type,
                     request.confidence_score,
                     request.success_after,
@@ -2312,7 +2307,7 @@ async def get_escalation_insights(x_api_key: Optional[str] = Header(None)):
                         from_model,
                         COUNT(*) as escalation_count,
                         ROUND(COUNT(*) * 100.0 / NULLIF(
-                            (SELECT COUNT(*) FROM tasks t2 WHERE t2.created_at >= NOW() - INTERVAL '30 days'), 0
+                            (SELECT COUNT(*) FROM tasks t2 WHERE t2.logged_at >= NOW() - INTERVAL '30 days'), 0
                         )::numeric, 2) AS escalation_rate_pct
                     FROM escalation_events
                     WHERE created_at >= NOW() - INTERVAL '30 days'
@@ -2362,4 +2357,69 @@ async def get_escalation_insights(x_api_key: Optional[str] = Header(None)):
             "per_model_escalation_rate": [],
             "task_type_distribution": [],
             "last_5_events": [],
+        }
+
+
+@app.get("/api/v1/escalation/public")
+async def escalation_public():
+    """
+    Public (no-auth) escalation summary for dashboard display.
+    Returns aggregate stats only — no sensitive task details.
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Total escalations (last 30 days)
+                cur.execute("SELECT COUNT(*) AS total FROM escalation_events WHERE created_at >= NOW() - INTERVAL '30 days'")
+                total = cur.fetchone()["total"] or 0
+
+                # Per-model escalation counts
+                cur.execute("""
+                    SELECT from_model, COUNT(*) AS escalation_count
+                    FROM escalation_events
+                    WHERE created_at >= NOW() - INTERVAL '30 days'
+                    GROUP BY from_model
+                    ORDER BY escalation_count DESC
+                    LIMIT 10
+                """)
+                per_model = [{"from_model": r["from_model"], "escalation_count": int(r["escalation_count"])} for r in cur.fetchall()]
+
+                # Task type distribution
+                cur.execute("""
+                    SELECT COALESCE(task_type, 'unknown') AS task_type, COUNT(*) AS count
+                    FROM escalation_events
+                    WHERE created_at >= NOW() - INTERVAL '30 days'
+                    GROUP BY task_type
+                    ORDER BY count DESC
+                    LIMIT 10
+                """)
+                by_task_type = [dict(r) for r in cur.fetchall()]
+
+                # Success rate from last 20 escalations
+                cur.execute("""
+                    SELECT success_after FROM escalation_events
+                    ORDER BY created_at DESC LIMIT 20
+                """)
+                recent = cur.fetchall()
+                success_after_count = sum(1 for r in recent if r["success_after"])
+                success_rate = round(success_after_count / len(recent), 3) if recent else None
+
+        return {
+            "period": "last_30_days",
+            "total_escalations": int(total),
+            "per_model_escalation_rate": per_model,
+            "task_type_distribution": by_task_type,
+            "escalation_success_rate": success_rate,
+            "pre_routing_saves": 0,
+            "last_5_events": [],
+        }
+    except Exception as e:
+        return {
+            "total_escalations": 0,
+            "per_model_escalation_rate": [],
+            "task_type_distribution": [],
+            "escalation_success_rate": None,
+            "pre_routing_saves": 0,
+            "last_5_events": [],
+            "error": str(e),
         }
