@@ -148,6 +148,21 @@ def init_db():
                 # Orchestrator migrations
                 cur.execute("ALTER TABLE orchestrator_state ADD COLUMN IF NOT EXISTS resolution TEXT DEFAULT 'N/A'")
                 cur.execute("ALTER TABLE model_benchmarks ADD COLUMN IF NOT EXISTS task_category TEXT DEFAULT 'general'")
+                # Escalation events table (v1.0.6)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS escalation_events (
+                        id SERIAL PRIMARY KEY,
+                        task_id TEXT,
+                        from_model TEXT,
+                        to_model TEXT,
+                        signals JSONB,
+                        task_type TEXT,
+                        confidence_score REAL,
+                        success_after BOOLEAN,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_escalation_task_id ON escalation_events(task_id)")
             conn.commit()
         print("✅ PostgreSQL ready (v1.0.5 + orchestrator)")
     except Exception as e:
@@ -1955,3 +1970,156 @@ async def registry_with_benchmarks():
         "models": models_with_bench,
         "note": "Benchmarks updated daily via /api/v1/recalibrate/orchestrator",
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ESCALATION ENGINE ENDPOINTS (v1.0.6)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class EscalationEventRequest(BaseModel):
+    task_id: str
+    from_model: str
+    to_model: str
+    signals: list = []
+    task_type: Optional[str] = None
+    confidence_score: float
+    success_after: bool
+
+
+@app.post("/api/v1/escalation/event")
+async def log_escalation_event(
+    request: EscalationEventRequest,
+    x_api_key: Optional[str] = Header(None)
+):
+    """
+    Log an escalation event from escalation_engine.py.
+    
+    Stores in escalation_events table and updates model stats.
+    Returns insights: which task types escalate most, per-model escalation rates.
+    """
+    agent = verify_key(x_api_key)
+    
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                # Insert escalation event
+                cur.execute("""
+                    INSERT INTO escalation_events
+                        (task_id, from_model, to_model, signals, task_type, confidence_score, success_after)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    request.task_id,
+                    request.from_model,
+                    request.to_model,
+                    json.dumps(request.signals) if request.signals else None,
+                    request.task_type,
+                    request.confidence_score,
+                    request.success_after,
+                ))
+                conn.commit()
+
+                # Get insight: other tasks that escalated from this model for this task_type
+                cur.execute("""
+                    SELECT COUNT(*) as escalation_count
+                    FROM escalation_events
+                    WHERE from_model = %s AND task_type = %s
+                    AND created_at >= NOW() - INTERVAL '30 days'
+                """, (request.from_model, request.task_type))
+                
+                row = cur.fetchone()
+                escalation_count = row[0] if row else 0
+                
+                # Suggestion for pre-routing
+                suggestion = ""
+                if escalation_count >= 5:
+                    suggestion = f"{request.from_model} escalated {escalation_count}x on {request.task_type} tasks in 30d → consider pre-routing higher"
+
+        return {
+            "stored": True,
+            "task_id": request.task_id,
+            "escalation_count_30d": escalation_count,
+            "insight": suggestion,
+        }
+    
+    except Exception as e:
+        print(f"❌ escalation event logging failed: {e}")
+        return {
+            "stored": False,
+            "error": str(e),
+        }
+
+
+@app.get("/api/v1/escalation/insights")
+async def get_escalation_insights(x_api_key: Optional[str] = Header(None)):
+    """
+    GET escalation analytics.
+    
+    Returns:
+    - per_model_escalation_rate: % of tasks requiring escalation by model
+    - task_type_escalation_rate: % of escalations by task type
+    - pre_routing_saves: count of tasks pre-routed higher based on escalation history
+    - last_5_events: recent escalations
+    """
+    agent = verify_key(x_api_key)
+    
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                
+                # Per-model escalation rate (last 30 days)
+                cur.execute("""
+                    SELECT
+                        from_model,
+                        COUNT(*) as escalation_count,
+                        ROUND(COUNT(*) * 100.0 / NULLIF(
+                            (SELECT COUNT(*) FROM tasks t2 WHERE t2.created_at >= NOW() - INTERVAL '30 days'), 0
+                        )::numeric, 2) AS escalation_rate_pct
+                    FROM escalation_events
+                    WHERE created_at >= NOW() - INTERVAL '30 days'
+                    GROUP BY from_model
+                    ORDER BY escalation_count DESC
+                """)
+                per_model = [dict(r) for r in cur.fetchall()]
+                
+                # Task type escalation distribution
+                cur.execute("""
+                    SELECT
+                        COALESCE(task_type, 'unknown') as task_type,
+                        COUNT(*) as count,
+                        ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM escalation_events WHERE created_at >= NOW() - INTERVAL '30 days')::numeric, 1) AS pct
+                    FROM escalation_events
+                    WHERE created_at >= NOW() - INTERVAL '30 days'
+                    GROUP BY task_type
+                    ORDER BY count DESC
+                """)
+                by_task_type = [dict(r) for r in cur.fetchall()]
+                
+                # Last 5 escalation events
+                cur.execute("""
+                    SELECT
+                        task_id, from_model, to_model, task_type, confidence_score, success_after, created_at
+                    FROM escalation_events
+                    ORDER BY created_at DESC
+                    LIMIT 5
+                """)
+                last_events = [dict(r) for r in cur.fetchall()]
+                for evt in last_events:
+                    if evt.get('created_at'):
+                        evt['created_at'] = evt['created_at'].isoformat()
+
+        return {
+            "period": "last_30_days",
+            "per_model_escalation_rate": per_model,
+            "task_type_distribution": by_task_type,
+            "last_5_events": last_events,
+            "pre_routing_saves": 0,  # TODO: track when pre-routing avoids escalation
+        }
+    
+    except Exception as e:
+        print(f"❌ escalation insights query failed: {e}")
+        return {
+            "error": str(e),
+            "per_model_escalation_rate": [],
+            "task_type_distribution": [],
+            "last_5_events": [],
+        }

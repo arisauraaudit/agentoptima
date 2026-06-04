@@ -741,6 +741,177 @@ setInterval(loadOrchestratorData, 60000);
 
 
 
+
+<!-- ── 🚀 Dynamic Escalation Activity ────────────────────────────────────────── -->
+<div class="section" id="escalation-section">
+    <h2 class="section-title">🚀 Dynamic Escalation Activity</h2>
+    <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+        Mid-conversation model escalation: Haiku → Sonnet → Opus when confidence drops. Every escalation feeds back into pre-routing strategy.
+    </p>
+
+    <!-- Escalation Stats Grid -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-bottom:2rem" id="escalation-stats-grid">
+        <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.3);border-radius:12px;padding:1.25rem">
+            <div style="font-size:0.75rem;color:#a78bfa;font-weight:600;text-transform:uppercase;margin-bottom:0.5rem">30-Day Escalations</div>
+            <div style="font-size:1.8rem;font-weight:700;color:#c4b5fd" id="total-escalations">--</div>
+        </div>
+        <div style="background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:1.25rem">
+            <div style="font-size:0.75rem;color:#6ee7b7;font-weight:600;text-transform:uppercase;margin-bottom:0.5rem">Pre-routing Saves</div>
+            <div style="font-size:1.8rem;font-weight:700;color:#6ee7b7" id="pre-routing-saves">--</div>
+        </div>
+        <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.3);border-radius:12px;padding:1.25rem">
+            <div style="font-size:0.75rem;color:#93c5fd;font-weight:600;text-transform:uppercase;margin-bottom:0.5rem">Highest Escalation Model</div>
+            <div style="font-size:1.8rem;font-weight:700;color:#93c5fd" id="top-escalation-model">--</div>
+        </div>
+        <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:1.25rem">
+            <div style="font-size:0.75rem;color:#fbbf24;font-weight:600;text-transform:uppercase;margin-bottom:0.5rem">Success After Escalation</div>
+            <div style="font-size:1.8rem;font-weight:700;color:#fbbf24" id="escalation-success-rate">--</div>
+        </div>
+    </div>
+
+    <!-- Per-Model Escalation Rates -->
+    <p style="color:#64748b;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem">Per-Model Escalation Rates</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem" id="per-model-escalation-grid">
+        <div style="background:rgba(100,116,139,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:8px;padding:1rem;text-align:center">
+            <div style="color:#94a3b8;font-size:0.8rem;margin-bottom:0.5rem">Loading escalation data...</div>
+        </div>
+    </div>
+
+    <!-- Task Type Distribution -->
+    <p style="color:#64748b;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem">Escalations by Task Type</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:2rem" id="task-type-escalation-grid">
+        <div style="background:rgba(100,116,139,0.3);border:1px solid rgba(148,163,184,0.2);border-radius:8px;padding:1rem;text-align:center">
+            <div style="color:#94a3b8;font-size:0.8rem">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Last 5 Escalation Events -->
+    <p style="color:#64748b;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem">Last 5 Escalation Events</p>
+    <div style="overflow-x:auto">
+        <table id="escalation-events-table" style="width:100%;border-collapse:collapse;background:rgba(30,41,59,0.8);border-radius:12px;overflow:hidden;border:1px solid rgba(148,163,184,0.2)">
+            <thead style="background:rgba(15,23,42,0.9)">
+                <tr style="border-bottom:1px solid rgba(148,163,184,0.2)">
+                    <th style="padding:0.95rem 1.2rem;text-align:left;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Task ID</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">From → To</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Task Type</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Confidence</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Success</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Time (UTC)</th>
+                </tr>
+            </thead>
+            <tbody id="escalation-events-body">
+                <tr><td colspan="6" style="padding:2rem;text-align:center;color:#64748b">Loading escalation events...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <p style="color:#475569;font-size:0.75rem;text-align:center;margin-top:1rem">
+        Escalation data auto-refreshes every 30 seconds • Learn more: <a href="https://github.com/arisauraaudit/agentoptima" style="color:#818cf8">escalation_engine.py</a>
+    </p>
+</div>
+
+<script>
+async function loadEscalationData() {
+    try {
+        // Fetch escalation insights from API
+        const resp = await fetch('https://agentoptima.ai/api/v1/escalation/insights', {
+            headers: {
+                'X-API-Key': 'ao-41727e957d734ef638903180293af0d6171efda7373902e6'
+            }
+        });
+        
+        if (!resp.ok) {
+            console.log('Escalation API not yet available (expected on fresh deploy)');
+            return;
+        }
+        
+        const data = await resp.json();
+        
+        // Update stats
+        const totalEscalations = data.per_model_escalation_rate.reduce((sum, m) => sum + (m.escalation_count || 0), 0);
+        document.getElementById('total-escalations').textContent = totalEscalations.toLocaleString();
+        document.getElementById('pre-routing-saves').textContent = (data.pre_routing_saves || 0).toLocaleString();
+        
+        // Top escalating model
+        if (data.per_model_escalation_rate.length > 0) {
+            const topModel = data.per_model_escalation_rate[0].from_model;
+            document.getElementById('top-escalation-model').textContent = topModel.split('/').pop().split('-').slice(0, 2).join(' ');
+        }
+        
+        // Success rate
+        const successfulEscalations = data.last_5_events.filter(e => e.success_after).length;
+        const successRate = data.last_5_events.length > 0 
+            ? ((successfulEscalations / data.last_5_events.length) * 100).toFixed(0) + '%'
+            : '--';
+        document.getElementById('escalation-success-rate').textContent = successRate;
+        
+        // Per-model grid
+        const perModelGrid = document.getElementById('per-model-escalation-grid');
+        perModelGrid.innerHTML = '';
+        (data.per_model_escalation_rate || []).forEach(model => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:rgba(100,116,139,0.15);border:1px solid rgba(148,163,184,0.2);border-radius:8px;padding:1rem';
+            const modelName = model.from_model.split('/').pop().split('-').slice(0, 2).join(' ');
+            card.innerHTML = `
+                <div style="color:#f1f5f9;font-weight:600;margin-bottom:0.5rem">${modelName}</div>
+                <div style="font-size:1.3rem;font-weight:700;color:#818cf8">${model.escalation_rate_pct || 0}%</div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem">${model.escalation_count} escalations</div>
+            `;
+            perModelGrid.appendChild(card);
+        });
+        
+        // Task type distribution
+        const taskTypeGrid = document.getElementById('task-type-escalation-grid');
+        taskTypeGrid.innerHTML = '';
+        (data.task_type_distribution || []).forEach(tt => {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:rgba(100,116,139,0.15);border:1px solid rgba(148,163,184,0.2);border-radius:8px;padding:1rem';
+            card.innerHTML = `
+                <div style="color:#f1f5f9;font-weight:600;margin-bottom:0.5rem">${tt.task_type || 'unknown'}</div>
+                <div style="font-size:1.3rem;font-weight:700;color:#10b981">${tt.pct || 0}%</div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem">${tt.count} events</div>
+            `;
+            taskTypeGrid.appendChild(card);
+        });
+        
+        // Last 5 events table
+        const tbody = document.getElementById('escalation-events-body');
+        tbody.innerHTML = '';
+        (data.last_5_events || []).forEach(evt => {
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid rgba(148,163,184,0.2)';
+            const fromModel = evt.from_model.split('/').pop().split('-').slice(0, 2).join(' ');
+            const toModel = evt.to_model.split('/').pop().split('-').slice(0, 2).join(' ');
+            const successBadge = evt.success_after 
+                ? '<span style="background:#10b98120;color:#10b981;padding:2px 6px;border-radius:4px;font-size:0.75rem">✓ yes</span>'
+                : '<span style="background:#ef444420;color:#ef4444;padding:2px 6px;border-radius:4px;font-size:0.75rem">✗ no</span>';
+            const timestamp = new Date(evt.created_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            
+            row.innerHTML = `
+                <td style="padding:0.95rem 1.2rem;color:#f1f5f9;font-size:0.85rem;font-family:monospace">${evt.task_id.substring(0, 12)}...</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#818cf8;font-weight:600">${fromModel} → ${toModel}</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#94a3b8;font-size:0.85rem">${evt.task_type || 'N/A'}</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#f1f5f9;font-weight:600">${(evt.confidence_score * 100).toFixed(0)}%</td>
+                <td style="padding:0.95rem 1rem;text-align:center">${successBadge}</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#64748b;font-size:0.8rem">${timestamp}</td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+    } catch (error) {
+        console.error('Escalation data load error:', error);
+    }
+}
+
+// Load on page load
+loadEscalationData();
+
+// Refresh every 30 seconds
+setInterval(loadEscalationData, 30000);
+</script>
+
+
+
         <!-- ── Routing Gate ────────────────────────────────────────── -->
         <div class="section" id="gate-section">
             <h2 class="section-title">🛡️ Routing Gate</h2>
