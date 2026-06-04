@@ -220,6 +220,94 @@
         }
         .chevron.open { transform: rotate(180deg); }
 
+        /* ── Routing Intelligence ── */
+        .efficiency-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1.25rem;
+        }
+        @media (max-width: 640px) {
+            .efficiency-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        }
+        .efficiency-card {
+            background: rgba(15,23,42,0.9);
+            border: 1px solid rgba(16,185,129,0.25);
+            border-radius: 14px;
+            padding: 1.25rem;
+            text-align: center;
+            transition: all 0.25s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .efficiency-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(16,185,129,0.5);
+            box-shadow: 0 8px 24px rgba(16,185,129,0.15);
+        }
+        .efficiency-card .savings-pct {
+            font-size: 2.4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #10b981, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.1;
+        }
+        @media (max-width: 640px) {
+            .efficiency-card .savings-pct { font-size: 1.8rem; }
+        }
+        .efficiency-card .model-short {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 0.35rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .efficiency-card .task-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: rgba(59,130,246,0.2);
+            color: #93c5fd;
+            border: 1px solid rgba(59,130,246,0.25);
+        }
+        .efficiency-card .cost-line {
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: 0.3rem;
+        }
+        .routing-recs {
+            background: rgba(15,23,42,0.8);
+            border: 1px solid rgba(148,163,184,0.12);
+            border-radius: 14px;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .routing-recs ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .routing-recs li {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            color: #94a3b8;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(148,163,184,0.06);
+        }
+        .routing-recs li:last-child { border-bottom: none; }
+        .routing-recs li .rec-check { flex-shrink: 0; }
         /* ── Rankings responsive ── */
         .rank-summary {
             display: grid;
@@ -463,6 +551,29 @@
             <span style="white-space:nowrap">🧠 Sonnet only for strategy & security</span>
         </div>
 
+        <!-- ── Routing Intelligence ─────────────────────────────────────── -->
+        <div class="section" id="routing-intelligence-section">
+            <h2 class="section-title">🧠 Routing Intelligence</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:0.5rem" class="section-desc">
+                Live efficiency data from <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/efficiency</code> — best-value models vs Sonnet baseline, updated every 60s.
+            </p>
+
+            <!-- Best Value Cards -->
+            <p style="color:#64748b;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-top:1rem;margin-bottom:0.25rem">Best Value Models</p>
+            <div class="efficiency-grid" id="efficiency-cards">
+                <div style="color:#64748b;padding:1.5rem;text-align:center;grid-column:1/-1">Loading efficiency data…</div>
+            </div>
+
+            <!-- Routing Recommendations -->
+            <div class="routing-recs" id="routing-recs-panel">
+                <p style="color:#e2e8f0;font-weight:600;font-size:0.9rem;margin-bottom:0.75rem">📋 Routing Recommendations</p>
+                <ul id="routing-recs-list">
+                    <li><span class="rec-check">⏳</span> Loading recommendations…</li>
+                </ul>
+            </div>
+        </div>
+        <!-- ── /Routing Intelligence ──────────────────────────────────────── -->
+
         <div class="section">
             <h2 class="section-title">Live Model Rankings</h2>
             <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
@@ -668,7 +779,7 @@
         <!-- ── /Connect Your Agent ─────────────────────────────────────── -->
 
         <footer>
-            <p>AgentOptima v1.0.2 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
+            <p>AgentOptima v1.0.5 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
             <p style="margin-top: 0.5rem; font-size: 0.875rem;">
                 <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
                 <a href="/api/v1/docs">API Docs</a> •
@@ -1420,10 +1531,92 @@
 
         // ── /Routing Stats Bar Functions ────────────────────────────────────────────────────
 
+        // ── Routing Intelligence Functions ─────────────────────────────────────────────
+
+        function shortModelName(fullId) {
+            const part = fullId.split('/').pop();
+            // Friendly shortening
+            return part
+                .replace('claude-haiku-4-5-20251001', 'Haiku 4.5')
+                .replace('claude-haiku-3', 'Haiku 3')
+                .replace('claude-sonnet-4-6', 'Sonnet 4.6')
+                .replace('claude-3-7-sonnet-20250219', 'Sonnet 3.7')
+                .replace('gpt-4o-mini', 'GPT-4o Mini')
+                .replace('gpt-4o', 'GPT-4o')
+                .replace('deepseek-v4-flash', 'DeepSeek Flash')
+                .replace('deepseek-chat', 'DeepSeek Chat')
+                .replace('gemini-2.0-flash-001', 'Gemini 2.0 Flash')
+                .replace('gemini-flash', 'Gemini Flash');
+        }
+
+        const taskColours = {
+            coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
+            writing:'#ec4899', data:'#10b981', general:'#64748b',
+            math:'#f97316', security:'#ef4444', knowledge:'#06b6d4',
+            conversation:'#d946ef'
+        };
+
+        async function loadEfficiencyData() {
+            try {
+                const data = await fetchAPI('/efficiency');
+                renderEfficiencyCards(data.best_value_models || []);
+                renderRoutingRecs(data.routing_recommendations || []);
+            } catch(e) {
+                console.error('Efficiency fetch failed:', e);
+                document.getElementById('efficiency-cards').innerHTML =
+                    '<div style="color:#ef4444;padding:1.5rem;text-align:center;grid-column:1/-1">Could not load efficiency data.</div>';
+            }
+        }
+
+        function renderEfficiencyCards(models) {
+            const container = document.getElementById('efficiency-cards');
+            if (!models.length) {
+                container.innerHTML = '<div style="color:#64748b;padding:1.5rem;text-align:center;grid-column:1/-1">No efficiency data yet.</div>';
+                return;
+            }
+            // Show top 5
+            const top5 = models.slice(0, 5);
+            container.innerHTML = top5.map(m => {
+                const name   = shortModelName(m.model);
+                const task   = m.task_type || 'general';
+                const col    = taskColours[task] || '#64748b';
+                const savings = m.vs_sonnet_savings_pct != null ? Math.round(m.vs_sonnet_savings_pct) : null;
+                const cps    = m.cost_per_success != null ? m.cost_per_success.toFixed(3) : null;
+                return `
+                <div class="efficiency-card">
+                    <div class="model-short" title="${m.model}">${name}</div>
+                    <div><span class="task-badge" style="background:rgba(0,0,0,0.3);color:${col};border-color:${col}40">${task}</span></div>
+                    ${savings != null
+                        ? `<div class="savings-pct">${savings}%</div>
+                           <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.1rem">cheaper than Sonnet</div>`
+                        : '<div style="color:#64748b;font-size:0.9rem">—</div>'}
+                    ${cps != null
+                        ? `<div class="cost-line">${cps}¢ per successful task</div>`
+                        : ''}
+                </div>`;
+            }).join('');
+        }
+
+        function renderRoutingRecs(recs) {
+            const list = document.getElementById('routing-recs-list');
+            if (!recs.length) {
+                list.innerHTML = '<li><span class="rec-check">ℹ️</span> No recommendations available yet.</li>';
+                return;
+            }
+            list.innerHTML = recs.map(r =>
+                `<li><span class="rec-check">✅</span><span>${r}</span></li>`
+            ).join('');
+        }
+
+        // ── /Routing Intelligence Functions ─────────────────────────────────────────────
+
         // Initialize
         refresh();
+        loadEfficiencyData();
         // Auto-refresh every 15 seconds (feed is the key update)
         setInterval(refresh, 15000);
+        // Efficiency auto-refresh every 60 seconds
+        setInterval(loadEfficiencyData, 60000);
         
         console.log('AgentOptima Dashboard initialized', new Date());
     </script>
