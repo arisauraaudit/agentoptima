@@ -1,4 +1,4 @@
-# AgentOptima API v1.0.3 — cost-aware routing + feedback loop + security oracle + panic + recommendations fix
+# AgentOptima API v1.0.4 — cost_per_success metric + /efficiency endpoint + enhanced routing
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.0.3", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.0.4", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -230,7 +230,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.0.3"}
+    return {"status": "healthy", "version": "1.0.4"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -254,7 +254,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.0.3", "tasks_logged": total,
+    return {"status": "running", "version": "1.0.4", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -317,18 +317,21 @@ def get_task_tolerance(task_type: str, override: float = None) -> float:
 async def get_rankings(include_subtypes: bool = False):
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            # Category-level rankings
+            # Category-level rankings — with cost_per_success computed in SQL
             cur.execute("""
                 SELECT model, task_type AS category, NULL AS subtype,
                     COUNT(*) AS tasks_logged,
                     ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
                     ROUND(AVG(duration_s)::numeric,2) AS avg_duration,
                     ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents,
-                    ROUND(AVG(quality_score)::numeric,2) AS avg_quality
+                    ROUND(AVG(quality_score)::numeric,2) AS avg_quality,
+                    ROUND(
+                        (AVG(cost_cents) / NULLIF(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 0))::numeric
+                    , 4) AS cost_per_success
                 FROM tasks
                 WHERE model = ANY(%s)
                 GROUP BY model, task_type
-                ORDER BY success_rate DESC, tasks_logged DESC
+                ORDER BY success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
             """, (ACTIVE_POOL,))
             category_rows = cur.fetchall()
 
@@ -341,11 +344,14 @@ async def get_rankings(include_subtypes: bool = False):
                         ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
                         ROUND(AVG(duration_s)::numeric,2) AS avg_duration,
                         ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents,
-                        ROUND(AVG(quality_score)::numeric,2) AS avg_quality
+                        ROUND(AVG(quality_score)::numeric,2) AS avg_quality,
+                        ROUND(
+                            (AVG(cost_cents) / NULLIF(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 0))::numeric
+                        , 4) AS cost_per_success
                     FROM tasks
                     WHERE model = ANY(%s) AND task_subtype IS NOT NULL
                     GROUP BY model, task_type, task_subtype
-                    ORDER BY task_subtype, success_rate DESC, tasks_logged DESC
+                    ORDER BY task_subtype, success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
                 """, (ACTIVE_POOL,))
                 subtype_rows = cur.fetchall()
 
@@ -530,8 +536,10 @@ def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
       1. Find the best success_rate among all candidates.
       2. Mark models within `quality_tolerance` of that best rate as eligible.
          (e.g. tolerance=0.10 means accept up to 10% lower success rate)
-      3. Among eligible models, pick the cheapest (lowest avg_cost_cents).
-      4. Ineligible models follow, sorted by success rate DESC.
+      3. Models with success_rate < 0.30 are always ineligible (unreliable).
+      4. Among eligible models, prefer lower cost_per_success
+         (= avg_cost_cents / success_rate — the true cost per win).
+      5. Ineligible models follow, sorted by success rate DESC.
 
     Also adds `value_score` to each row:
       value_score = success_rate x (quality/5) / log(1 + avg_cost_cents)
@@ -543,6 +551,8 @@ def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
     if not rows:
         return rows
 
+    RELIABILITY_FLOOR = 0.30   # models below this are never routed to regardless of cost
+
     rows_out = [dict(r) for r in rows]
     best_sr = max(float(r["success_rate"]) for r in rows_out)
     min_sr = best_sr * (1.0 - quality_tolerance)
@@ -551,13 +561,18 @@ def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
         sr = float(r["success_rate"])
         cost = max(float(r.get("avg_cost_cents") or 0.001), 0.001)
         quality = float(r.get("avg_quality") or 4.0)
+        # cost_per_success: the true cost per successful task
+        r["cost_per_success"] = round(cost / sr, 4) if sr > 0 else None
         # Higher = better quality efficiency per log-cost unit
         r["value_score"] = round(sr * (quality / 5.0) / math.log1p(cost), 4)
-        r["within_tolerance"] = sr >= min_sr
+        # Eligible if: above reliability floor AND within quality tolerance of best
+        r["within_tolerance"] = (sr >= RELIABILITY_FLOOR) and (sr >= min_sr)
 
+    # Among eligible: sort by cost_per_success ASC (cheapest per win first)
+    # When cost_per_success is None (zero cost tasks), treat as 0 (free wins always first)
     eligible = sorted(
         [r for r in rows_out if r["within_tolerance"]],
-        key=lambda r: float(r.get("avg_cost_cents") or 999)
+        key=lambda r: (r["cost_per_success"] if r["cost_per_success"] is not None else 0.0)
     )
     ineligible = sorted(
         [r for r in rows_out if not r["within_tolerance"]],
@@ -683,6 +698,7 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
         "recommended_model": best["model"],
         "success_rate": round(float(best["success_rate"]), 4),
         "avg_cost_cents": round(float(best["avg_cost_cents"]), 4),
+        "cost_per_success": best.get("cost_per_success"),
         "avg_duration_s": round(float(best["avg_duration"]), 1),
         "avg_quality": round(float(best["avg_quality"]), 2) if best.get("avg_quality") else None,
         "value_score": best.get("value_score"),
@@ -690,6 +706,134 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
         "all_candidates": rows,
         "classification": classification_meta,
     }
+
+# ── EFFICIENCY endpoint ────────────────────────────────────────────────────────
+
+@app.get("/api/v1/efficiency")
+async def get_efficiency():
+    """
+    Cost-per-success efficiency analysis across all model×task_type combinations.
+    Returns best/worst value models and human-readable routing recommendations.
+    cost_per_success = avg_cost_cents / success_rate
+    (lower = better — you pay less per successful task outcome)
+    """
+    SONNET = "anthropic/claude-sonnet-4-6"
+    MIN_TASKS = 5
+    RELIABILITY_FLOOR = 0.30   # ignore unreliable models in efficiency ranking
+
+    def sf(val, default=0.0):
+        if val is None: return default
+        try: return float(val)
+        except: return default
+
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    model,
+                    task_type,
+                    COUNT(*) AS task_count,
+                    ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric, 4) AS success_rate,
+                    ROUND(AVG(cost_cents)::numeric, 4) AS avg_cost_cents,
+                    ROUND(AVG(quality_score)::numeric, 2) AS avg_quality,
+                    ROUND(
+                        (AVG(cost_cents) / NULLIF(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 0))::numeric
+                    , 4) AS cost_per_success
+                FROM tasks
+                WHERE model = ANY(%s)
+                GROUP BY model, task_type
+                HAVING COUNT(*) >= %s
+                ORDER BY cost_per_success ASC NULLS LAST
+            """, (ACTIVE_POOL, MIN_TASKS))
+            rows = cur.fetchall()
+
+    if not rows:
+        return {
+            "best_value_models": [],
+            "worst_value_models": [],
+            "routing_recommendations": ["Insufficient data — need at least 5 tasks per model per task_type"],
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+
+    # Build Sonnet baseline per task_type for savings calculation
+    sonnet_cps_by_type: dict = {}
+    for r in rows:
+        if r["model"] == SONNET and r["cost_per_success"] is not None:
+            sonnet_cps_by_type[r["task_type"]] = sf(r["cost_per_success"])
+
+    # Filter: only models above reliability floor
+    reliable = [r for r in rows if sf(r["success_rate"]) >= RELIABILITY_FLOOR]
+
+    # Enrich with vs_sonnet_savings_pct
+    enriched = []
+    for r in reliable:
+        cps = sf(r["cost_per_success"])
+        sonnet_cps = sonnet_cps_by_type.get(r["task_type"])
+        savings_pct = None
+        if sonnet_cps and sonnet_cps > 0 and cps > 0 and r["model"] != SONNET:
+            savings_pct = round((1.0 - cps / sonnet_cps) * 100, 1)
+        enriched.append({
+            "model":              r["model"],
+            "task_type":          r["task_type"],
+            "task_count":         int(r["task_count"]),
+            "success_rate":       sf(r["success_rate"]),
+            "avg_cost_cents":     sf(r["avg_cost_cents"]),
+            "avg_quality":        sf(r["avg_quality"]) if r["avg_quality"] else None,
+            "cost_per_success":   round(cps, 4) if cps else None,
+            "vs_sonnet_savings_pct": savings_pct,
+        })
+
+    # Sort by cost_per_success ASC for best value; DESC for worst
+    sortable = [r for r in enriched if r["cost_per_success"] is not None]
+    best_value  = sorted(sortable, key=lambda r: r["cost_per_success"])[:10]
+    worst_value = sorted(sortable, key=lambda r: -r["cost_per_success"])[:5]
+
+    # Generate routing recommendations
+    recommendations = []
+    by_type: dict = {}
+    for r in sortable:
+        by_type.setdefault(r["task_type"], []).append(r)
+
+    for task_type, candidates in sorted(by_type.items()):
+        if len(candidates) < 2:
+            continue
+        best = min(candidates, key=lambda r: r["cost_per_success"])
+        sonnet_row = next((r for r in candidates if r["model"] == SONNET), None)
+        best_short = best["model"].split("/")[-1]
+
+        if best["model"] != SONNET and sonnet_row:
+            s_cps = sf(sonnet_row["cost_per_success"])
+            b_cps = sf(best["cost_per_success"])
+            if s_cps > 0 and b_cps > 0:
+                savings = round((1.0 - b_cps / s_cps) * 100, 0)
+                qual_note = ""
+                if best.get("avg_quality") and sonnet_row.get("avg_quality"):
+                    quality_ratio = round(sf(best["avg_quality"]) / sf(sonnet_row["avg_quality"]) * 100, 0)
+                    qual_note = f" at {quality_ratio:.0f}% of Sonnet quality"
+                if savings > 10:
+                    recommendations.append(
+                        f"For {task_type} tasks: {best_short} delivers {best['success_rate']*100:.0f}% success"
+                        f"{qual_note} at {savings:.0f}% lower cost-per-success than Sonnet"
+                        f" ({b_cps:.4f}¢ vs {s_cps:.4f}¢ per win)"
+                    )
+        elif best["model"] == SONNET:
+            recommendations.append(
+                f"For {task_type} tasks: Sonnet leads on cost-per-success — no cheaper model beats it yet"
+            )
+
+    if not recommendations:
+        recommendations = ["All task types converging — need more data to differentiate model efficiency"]
+
+    return {
+        "best_value_models":      best_value,
+        "worst_value_models":     worst_value,
+        "routing_recommendations": recommendations,
+        "total_model_task_pairs": len(enriched),
+        "sonnet_baselines":       {k: round(v, 4) for k, v in sonnet_cps_by_type.items()},
+        "generated_at":           datetime.utcnow().isoformat(),
+        "methodology":            "cost_per_success = avg_cost_cents / success_rate (lower is better; models below 30% success rate excluded)",
+    }
+
 
 @app.get("/api/v1/recommendations")
 async def get_recommendations():
@@ -1262,7 +1406,7 @@ async def panic(request: PanicRequest,
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.0.3",
+        "version": "1.0.4",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
