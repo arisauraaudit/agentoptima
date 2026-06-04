@@ -596,6 +596,151 @@
         </div>
 
 
+<!-- ── 🧠 Orchestrator Intelligence ─────────────────────────────────────────────────── -->
+<div class="section" id="orchestrator-section">
+    <h2 class="section-title">🧠 Orchestrator Intelligence</h2>
+    <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+        Real-time model benchmarks and orchestration routing decisions. AgentOptima automatically selects which model runs as Aris's brain \u2014 based on live performance data across orchestration tasks.
+    </p>
+
+    <!-- Current Orchestrator Recommendation -->
+    <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.3);border-radius:16px;padding:1.75rem;margin-bottom:2rem">
+        <p style="color:#e2e8f0;font-weight:600;font-size:0.95rem;margin-bottom:1rem">⚡ Current Orchestrator Model</p>
+        <div style="display:grid;grid-template-columns:1fr auto;gap:1.5rem;align-items:center">
+            <div>
+                <div style="font-size:1.3rem;font-weight:700;color:#f1f5f9;margin-bottom:0.5rem" id="orch-model-name">Loading...</div>
+                <p style="color:#94a3b8;font-size:0.85rem;margin:0;line-height:1.5" id="orch-reason">Fetching current recommendation...</p>
+            </div>
+            <div style="text-align:right">
+                <div style="font-size:0.8rem;color:#64748b;margin-bottom:0.35rem">Last Updated</div>
+                <div style="font-size:1.1rem;color:#818cf8;font-weight:600" id="orch-age">--</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid rgba(99,102,241,0.2)">
+            <div>
+                <div style="color:#818cf8;font-size:0.75rem;font-weight:600;text-transform:uppercase;margin-bottom:0.35rem">Success Rate</div>
+                <div style="font-size:1.4rem;font-weight:700;color:#10b981" id="orch-sr">--</div>
+            </div>
+            <div>
+                <div style="color:#818cf8;font-size:0.75rem;font-weight:600;text-transform:uppercase;margin-bottom:0.35rem">Avg Cost</div>
+                <div style="font-size:1.4rem;font-weight:700;color:#f59e0b" id="orch-cost">--</div>
+            </div>
+            <div>
+                <div style="color:#818cf8;font-size:0.75rem;font-weight:600;text-transform:uppercase;margin-bottom:0.35rem">Avg Duration</div>
+                <div style="font-size:1.4rem;font-weight:700;color:#3b82f6" id="orch-dur">--</div>
+            </div>
+            <div>
+                <div style="color:#818cf8;font-size:0.75rem;font-weight:600;text-transform:uppercase;margin-bottom:0.35rem">Based On</div>
+                <div style="font-size:1.4rem;font-weight:700;color:#a78bfa" id="orch-tasks">--</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Registry Table -->
+    <p style="color:#64748b;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:1rem">All Models \u2014 Live Benchmarks</p>
+    <div style="overflow-x:auto;margin-bottom:2rem">
+        <table id="orchestrator-registry-table" style="width:100%;border-collapse:collapse;background:rgba(30,41,59,0.8);border-radius:12px;overflow:hidden;border:1px solid rgba(148,163,184,0.2)">
+            <thead style="background:rgba(15,23,42,0.9)">
+                <tr style="border-bottom:1px solid rgba(148,163,184,0.2)">
+                    <th style="padding:0.95rem 1.2rem;text-align:left;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Model</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Tier</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Quality</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Success</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Latency</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Cost</th>
+                    <th style="padding:0.95rem 1rem;text-align:center;color:#e2e8f0;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:600">Tested</th>
+                </tr>
+            </thead>
+            <tbody id="orchestrator-registry-body">
+                <tr><td colspan="7" style="padding:2rem;text-align:center;color:#64748b">Loading model registry...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Last Updated Info -->
+    <p style="color:#475569;font-size:0.75rem;text-align:center;margin-top:1rem">
+        Benchmarks auto-refresh every 60 seconds • Last orchestrator recalibration: <span id="orch-last-recal">--</span>
+    </p>
+</div>
+
+<script>
+async function loadOrchestratorData() {
+    try {
+        // Load current recommendation
+        const currentResp = await fetch('https://agentoptima.ai/api/v1/orchestrator/current');
+        const currentData = await currentResp.json();
+        
+        if (currentData.status === 'current' || currentData.status === 'no_recommendation_yet') {
+            const bench = currentData.benchmarks_used || {};
+            const modelShort = currentData.recommended_model.split('/').pop();
+            
+            document.getElementById('orch-model-name').textContent = modelShort;
+            document.getElementById('orch-reason').textContent = currentData.reason.replace(/_/g, ' ').replace('data driven', 'Data-driven').replace('insufficient data', 'Insufficient data');
+            document.getElementById('orch-sr').textContent = bench.success_rate ? (bench.success_rate * 100).toFixed(0) + '%' : 'N/A';
+            document.getElementById('orch-cost').textContent = bench.avg_cost_cents ? '$' + (bench.avg_cost_cents / 100).toFixed(4) : 'N/A';
+            document.getElementById('orch-dur').textContent = bench.avg_duration_s ? bench.avg_duration_s.toFixed(1) + 's' : 'N/A';
+            document.getElementById('orch-tasks').textContent = bench.based_on_tasks ? bench.based_on_tasks.toLocaleString() : '--';
+            
+            if (currentData.age_hours !== undefined && currentData.age_hours !== null) {
+                let ageLabel = currentData.age_hours < 1 ? 'just now' : currentData.age_hours.toFixed(1) + 'h ago';
+                document.getElementById('orch-age').textContent = ageLabel;
+            }
+            
+            document.getElementById('orch-last-recal').textContent = currentData.updated_at 
+                ? new Date(currentData.updated_at).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'}) + ' UTC'
+                : 'Unknown';
+        }
+        
+        // Load registry with benchmarks
+        const registryResp = await fetch('https://agentoptima.ai/api/v1/registry/with-benchmarks');
+        const registryData = await registryResp.json();
+        
+        const tbody = document.getElementById('orchestrator-registry-body');
+        tbody.innerHTML = '';
+        
+        const tierColors = {
+            ultra_cheap: '#34d399',
+            cheap: '#60a5fa',
+            mid: '#818cf8',
+            quality: '#f59e0b',
+            oracle: '#ef4444'
+        };
+        
+        (registryData.models || []).forEach(model => {
+            const bench = model.benchmark || {};
+            const tierColor = tierColors[model.tier] || '#64748b';
+            const lastTested = model.last_tested ? new Date(model.last_tested).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit'}) : 'Never';
+            
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid rgba(148,163,184,0.2)';
+            row.innerHTML = `
+                <td style="padding:0.95rem 1.2rem;color:#f1f5f9;font-weight:600;white-space:nowrap">${model.model.split('/').pop()}</td>
+                <td style="padding:0.95rem 1rem;text-align:center"><span style="background:${tierColors[model.tier]}20;color:${tierColor};border:1px solid ${tierColor}40;border-radius:20px;padding:2px 8px;font-size:0.7rem;font-weight:600;white-space:nowrap">${model.tier}</span></td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#a78bfa;font-weight:600">${bench.quality_score ? bench.quality_score.toFixed(1) + '/5' : '--'}</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#10b981;font-weight:600">${bench.success_rate ? (bench.success_rate * 100).toFixed(0) + '%' : '--'}</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#3b82f6;font-weight:600">${bench.latency_ms ? bench.latency_ms + 'ms' : '--'}</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#f59e0b;font-weight:600">${bench.cost_cents ? '$' + (bench.cost_cents / 100).toFixed(4) : '--'}</td>
+                <td style="padding:0.95rem 1rem;text-align:center;color:#64748b;font-size:0.8rem">${lastTested}</td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+    } catch (error) {
+        console.error('Orchestrator data load error:', error);
+        document.getElementById('orch-model-name').textContent = 'Error loading';
+        document.getElementById('orch-reason').textContent = 'Check API connection';
+    }
+}
+
+// Load on page load
+loadOrchestratorData();
+
+// Refresh every 60 seconds
+setInterval(loadOrchestratorData, 60000);
+</script>
+
+
+
         <!-- ── Routing Gate ────────────────────────────────────────── -->
         <div class="section" id="gate-section">
             <h2 class="section-title">🛡️ Routing Gate</h2>

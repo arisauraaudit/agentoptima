@@ -25,6 +25,32 @@ def init_db():
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS orchestrator_state (
+                        id          SERIAL PRIMARY KEY,
+                        recommended_model TEXT NOT NULL,
+                        success_rate REAL,
+                        avg_cost_cents REAL,
+                        avg_duration_s REAL,
+                        based_on_tasks INTEGER,
+                        reason TEXT,
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS model_benchmarks (
+                        id          SERIAL PRIMARY KEY,
+                        model TEXT NOT NULL,
+                        benchmark_date DATE DEFAULT CURRENT_DATE,
+                        test_prompt TEXT,
+                        response_text TEXT,
+                        quality_score REAL,
+                        latency_ms INTEGER,
+                        cost_cents REAL,
+                        success BOOLEAN,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    )
+                """)
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS tasks (
                         id          SERIAL PRIMARY KEY,
                         task_id     TEXT NOT NULL,
@@ -119,8 +145,11 @@ def init_db():
                         created_at  TIMESTAMPTZ DEFAULT NOW()
                     )
                 """)
+                # Orchestrator migrations
+                cur.execute("ALTER TABLE orchestrator_state ADD COLUMN IF NOT EXISTS resolution TEXT DEFAULT 'N/A'")
+                cur.execute("ALTER TABLE model_benchmarks ADD COLUMN IF NOT EXISTS task_category TEXT DEFAULT 'general'")
             conn.commit()
-        print("✅ PostgreSQL ready (v1.0.0)")
+        print("✅ PostgreSQL ready (v1.0.5 + orchestrator)")
     except Exception as e:
         print(f"⚠️  DB init warning: {e}")
 
@@ -1696,3 +1725,233 @@ async def gate_stats():
         }
     except Exception as e:
         return {"total_checks": 0, "blocked_count": 0, "by_level": [], "error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ORCHESTRATOR RECALIBRATION — NEW ENDPOINTS v1.0.5
+# ══════════════════════════════════════════════════════════════════════════════
+
+class RecalibrateOrchestratorRequest(BaseModel):
+    task_id: Optional[str] = None
+    force: bool = False
+
+@app.post("/api/v1/recalibrate/orchestrator")
+async def recalibrate_orchestrator(
+    request: RecalibrateOrchestratorRequest,
+    x_api_key: Optional[str] = Header(None)
+):
+    """
+    Daily orchestration model recalibration.
+    
+    1. Queries all orchestration tasks (task_type='orchestration')
+    2. Ranks models by: success_rate >= 0.85, then lowest cost, then fastest duration
+    3. Picks best model and stores in orchestrator_state
+    4. Returns {recommended_model, success_rate, benchmarks_used, timestamp}
+    """
+    # Auth optional — can be called by cron or webhook
+    try:
+        if x_api_key:
+            verify_key(x_api_key)
+    except HTTPException:
+        pass  # allow unauthenticated calls for cron
+
+    task_id = request.task_id or f"orch-{secrets.token_hex(8)}"
+    ts = datetime.utcnow().isoformat()
+
+    with get_db() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Get orchestration task stats per model
+            cur.execute("""
+                SELECT
+                    model,
+                    COUNT(*) AS task_count,
+                    ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric, 4) AS success_rate,
+                    ROUND(AVG(duration_s)::numeric, 2) AS avg_duration_s,
+                    ROUND(AVG(cost_cents)::numeric, 4) AS avg_cost_cents,
+                    ROUND(AVG(quality_score)::numeric, 2) AS avg_quality
+                FROM tasks
+                WHERE task_type = 'orchestration' AND success = TRUE
+                GROUP BY model
+                HAVING COUNT(*) >= 5
+                ORDER BY
+                    success_rate DESC,
+                    avg_cost_cents ASC,
+                    avg_duration_s ASC
+            """)
+            candidates = cur.fetchall()
+
+    if not candidates:
+        # Fallback: use Sonnet for orchestration (safest choice)
+        result = {
+            "recommended_model": "anthropic/claude-sonnet-4-6",
+            "reason": "insufficient_data — defaulting to Sonnet (most reliable for orchestration)",
+            "benchmarks_used": 0,
+            "success_rate": None,
+            "avg_cost_cents": None,
+            "avg_duration_s": None,
+            "task_id": task_id,
+            "timestamp": ts,
+        }
+    else:
+        # Filter: only models >= 85% success rate
+        reliable = [c for c in candidates if float(c["success_rate"]) >= 0.85]
+
+        if not reliable:
+            # Use highest success rate if none meet floor
+            reliable = candidates[:1]
+
+        best = reliable[0]
+        result = {
+            "recommended_model": best["model"],
+            "reason": "data_driven_orchestration",
+            "benchmarks_used": {
+                "success_rate": float(best["success_rate"]),
+                "avg_cost_cents": float(best["avg_cost_cents"]),
+                "avg_duration_s": float(best["avg_duration_s"]),
+                "avg_quality": float(best["avg_quality"]) if best["avg_quality"] else None,
+                "based_on_tasks": int(best["task_count"]),
+            },
+            "success_rate": float(best["success_rate"]),
+            "avg_cost_cents": float(best["avg_cost_cents"]),
+            "avg_duration_s": float(best["avg_duration_s"]),
+            "task_id": task_id,
+            "timestamp": ts,
+        }
+
+    # Write to persistent state
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO orchestrator_state
+                        (recommended_model, success_rate, avg_cost_cents, avg_duration_s, based_on_tasks, reason, resolution)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    result["recommended_model"],
+                    result.get("success_rate"),
+                    result.get("avg_cost_cents"),
+                    result.get("avg_duration_s"),
+                    result.get("benchmarks_used", {}).get("based_on_tasks") if isinstance(result.get("benchmarks_used"), dict) else None,
+                    result.get("reason"),
+                    result.get("reason"),
+                ))
+            conn.commit()
+    except Exception as e:
+        print(f"⚠️ orchestrator_state write failed: {e}")
+
+    print(f"🧠 orchestrator recalibrated: {result['recommended_model']} (reason={result.get('reason')})")
+    return result
+
+
+@app.get("/api/v1/orchestrator/current")
+async def get_orchestrator_current():
+    """
+    GET current orchestrator recommendation.
+    Returns: {recommended_model, reason, benchmarks_used, updated_at, age_hours}
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        recommended_model, reason, success_rate, avg_cost_cents, avg_duration_s,
+                        based_on_tasks, updated_at
+                    FROM orchestrator_state
+                    ORDER BY updated_at DESC
+                    LIMIT 1
+                """)
+                row = cur.fetchone()
+
+        if not row:
+            return {
+                "status": "no_recommendation_yet",
+                "recommended_model": "anthropic/claude-sonnet-4-6",
+                "reason": "first_run — defaulting to Sonnet",
+                "updated_at": None,
+            }
+
+        # Calculate age
+        from datetime import timezone
+        updated = row["updated_at"]
+        now = datetime.now(timezone.utc) if updated.tzinfo else datetime.utcnow()
+        age_hours = (now - updated).total_seconds() / 3600 if updated else None
+
+        return {
+            "status": "current",
+            "recommended_model": row["recommended_model"],
+            "reason": row["reason"],
+            "benchmarks_used": {
+                "success_rate": float(row["success_rate"]) if row["success_rate"] else None,
+                "avg_cost_cents": float(row["avg_cost_cents"]) if row["avg_cost_cents"] else None,
+                "avg_duration_s": float(row["avg_duration_s"]) if row["avg_duration_s"] else None,
+                "based_on_tasks": int(row["based_on_tasks"]) if row["based_on_tasks"] else None,
+            },
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            "age_hours": round(age_hours, 1) if age_hours else None,
+        }
+    except Exception as e:
+        print(f"❌ get_orchestrator_current failed: {e}")
+        return {
+            "status": "error",
+            "recommended_model": "anthropic/claude-sonnet-4-6",
+            "reason": f"query_failed: {str(e)}",
+            "fallback": "using Sonnet",
+        }
+
+
+@app.get("/api/v1/registry/with-benchmarks")
+async def registry_with_benchmarks():
+    """
+    Extended model registry including live benchmark results.
+    Shows each model's recent test performance (quality, latency, cost).
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                # Latest benchmark per model (last 7 days)
+                cur.execute("""
+                    SELECT
+                        model,
+                        ROUND(AVG(quality_score)::numeric, 2) AS avg_quality,
+                        ROUND(AVG(latency_ms)::numeric, 0) AS avg_latency_ms,
+                        ROUND(AVG(cost_cents)::numeric, 4) AS avg_bench_cost,
+                        COUNT(*) AS benchmark_count,
+                        MAX(created_at) AS last_tested,
+                        ROUND(SUM(CASE WHEN success THEN 1.0 ELSE 0.0 END) / COUNT(*)::numeric, 4) AS success_rate
+                    FROM model_benchmarks
+                    WHERE created_at >= NOW() - INTERVAL '7 days'
+                    GROUP BY model
+                    ORDER BY avg_quality DESC, avg_latency_ms ASC
+                """)
+                bench_rows = {r["model"]: dict(r) for r in cur.fetchall()}
+
+    except Exception as e:
+        print(f"⚠️ benchmark query failed: {e}")
+        bench_rows = {}
+
+    # Combine registry + benchmarks
+    models_with_bench = []
+    for model_id, info in _MODEL_REGISTRY.items():
+        bench = bench_rows.get(model_id, {})
+        models_with_bench.append({
+            "model": model_id,
+            "tier": info["tier"],
+            "estimated_cost": info["cost"],
+            "speed": info["speed"],
+            "strength": info["strength"],
+            "last_tested": bench.get("last_tested").isoformat() if bench.get("last_tested") else None,
+            "benchmark": {
+                "quality_score": bench.get("avg_quality"),
+                "latency_ms": int(bench.get("avg_latency_ms")) if bench.get("avg_latency_ms") else None,
+                "cost_cents": bench.get("avg_bench_cost"),
+                "success_rate": bench.get("success_rate"),
+                "test_count": int(bench.get("benchmark_count")) if bench.get("benchmark_count") else 0,
+            } if bench else None,
+        })
+
+    return {
+        "version": "1.0.5",
+        "total_models": len(models_with_bench),
+        "models": models_with_bench,
+        "note": "Benchmarks updated daily via /api/v1/recalibrate/orchestrator",
+    }
