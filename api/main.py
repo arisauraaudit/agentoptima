@@ -699,6 +699,15 @@ async def get_recommendations():
     FAIL_THRESHOLD = 0.70  # flag models below this success rate
     COST_WIN_MIN = 5.0  # only flag cost wins where cheap model is >=5x cheaper
 
+    def sf(val, default=0.0):
+        """Safe float: converts Decimal/None/str to float without crashing."""
+        if val is None:
+            return default
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return default
+
     recommendations = []
 
     with get_db() as conn:
@@ -740,16 +749,16 @@ async def get_recommendations():
     # 1. Cost-win opportunities: cheap model beats Sonnet with same/better success
     for cat, models in by_cat.items():
         sonnet = sonnet_by_cat.get(cat)
-        if not sonnet or float(sonnet["avg_cost_cents"]) <= 0:
+        if not sonnet or sf(sonnet["avg_cost_cents"]) <= 0:
             continue
         for m in models:
             if m["model"] == SONNET:
                 continue
-            cost_ratio = float(sonnet["avg_cost_cents"]) / max(float(m["avg_cost_cents"]), 0.0001)
-            if cost_ratio >= COST_WIN_MIN and float(m["success_rate"]) >= 0.90:
+            cost_ratio = sf(sonnet["avg_cost_cents"]) / max(sf(m["avg_cost_cents"]), 0.0001)
+            if cost_ratio >= COST_WIN_MIN and sf(m["success_rate"]) >= 0.90:
                 quality_note = ""
                 if m["quality_samples"] and m["avg_quality"]:
-                    quality_note = f", quality {float(m['avg_quality']):.1f}/5"
+                    quality_note = f", quality {sf(m['avg_quality']):.1f}/5"
                 recommendations.append({
                     "priority": "high",
                     "category": "cost_optimization",
@@ -758,8 +767,8 @@ async def get_recommendations():
                     "message": (
                         f"{m['model'].split('/')[-1]} wins on {cat}: "
                         f"{cost_ratio:.0f}x cheaper than Sonnet "
-                        f"({float(m['avg_cost_cents']):.4f}¢ vs {float(sonnet['avg_cost_cents']):.4f}¢), "
-                        f"{float(m['success_rate'])*100:.0f}% success{quality_note}"
+                        f"({sf(m['avg_cost_cents']):.4f}¢ vs {sf(sonnet['avg_cost_cents']):.4f}¢), "
+                        f"{sf(m['success_rate'])*100:.0f}% success{quality_note}"
                     ),
                     "action": f"Route {cat} tasks to {m['model'].split('/')[-1]} — data supports it ({int(m['tasks'])} tasks)",
                     "cost_ratio": round(cost_ratio, 1),
@@ -769,7 +778,7 @@ async def get_recommendations():
     # 2. Reliability alerts: models failing below threshold
     for cat, models in by_cat.items():
         for m in models:
-            if float(m["success_rate"]) < FAIL_THRESHOLD:
+            if sf(m["success_rate"]) < FAIL_THRESHOLD:
                 recommendations.append({
                     "priority": "high",
                     "category": "reliability_alert",
@@ -777,11 +786,11 @@ async def get_recommendations():
                     "model": m["model"],
                     "message": (
                         f"{m['model'].split('/')[-1]} failing on {cat}: "
-                        f"{float(m['success_rate'])*100:.0f}% success rate "
+                        f"{sf(m['success_rate'])*100:.0f}% success rate "
                         f"({int(m['tasks'])} tasks)"
                     ),
                     "action": f"Remove {m['model'].split('/')[-1]} from {cat} pool or investigate failure notes",
-                    "success_rate": float(m["success_rate"]),
+                    "success_rate": sf(m["success_rate"]),
                     "tasks": int(m["tasks"]),
                 })
 
