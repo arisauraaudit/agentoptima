@@ -1,4 +1,4 @@
-# AgentOptima API v1.0.0 — cost-aware routing + feedback loop + security oracle + panic
+# AgentOptima API v1.0.1 — cost-aware routing + feedback loop + security oracle + panic
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.0.1", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -230,7 +230,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.0.0"}
+    return {"status": "healthy", "version": "1.0.1"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -254,7 +254,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.0.0", "tasks_logged": total,
+    return {"status": "running", "version": "1.0.1", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -1253,7 +1253,7 @@ async def panic(request: PanicRequest,
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.0.0",
+        "version": "1.0.1",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
