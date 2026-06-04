@@ -309,41 +309,7 @@
             label { font-size: 0.95rem !important; }
         }
 
-        .recommendations-panel {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 16px;
-            padding: 2rem;
-        }
         @media (max-width: 640px) {
-            .recommendations-panel { padding: 1.25rem; border-radius: 12px; }
-        }
-        .recommendation-item {
-            display: flex;
-            gap: 1rem;
-            padding: 1.5rem 0;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-            transition: all 0.3s ease;
-        }
-        @media (max-width: 640px) {
-            .recommendation-item { padding: 1rem 0; gap: 0.75rem; }
-        }
-        .recommendation-item:last-child {
-            border-bottom: none;
-        }
-        .recommendation-item:hover {
-            background: rgba(16, 185, 129, 0.05);
-            border-radius: 12px;
-            padding-left: 1rem;
-        }
-        .prio-high { color: #ef4444; font-weight: 600; }
-        .prio-medium { color: #f59e0b; font-weight: 600; }
-        .prio-low { color: #10b981; font-weight: 600; }
-        .rec-message { flex: 1; color: #e2e8f0; }
-        .rec-action { color: #94a3b8; font-size: 0.875rem; }
-        @media (max-width: 640px) {
-            .prio-high, .prio-medium, .prio-low { font-size: 0.75rem; }
-            .rec-message { font-size: 0.875rem; }
             .hero-description { font-size: 0.95rem !important; line-height: 1.5; }
             .section-desc { font-size: 0.875rem !important; }
         }
@@ -678,12 +644,7 @@
             </div>
         </div>
 
-        <div class="section">
-            <h2 class="section-title">AI Recommendations</h2>
-            <div class="recommendations-panel" id="recommendations-panel">
-                <p class="loading">Loading recommendations...</p>
-            </div>
-        </div>
+
 
 
         <!-- ── Connect Your Agent — COMING SOON (security audit in progress) ── -->
@@ -1059,27 +1020,7 @@
             }).join('');
         }
 
-        function renderRecommendations(recs) {
-            const container = document.getElementById('recommendations-panel');
-            
-            if (!recs || recs.recommendations.length === 0) {
-                container.innerHTML = '<p class="loading">No recommendations yet. Start tracking tasks!</p>';
-                return;
-            }
-            
-            container.innerHTML = recs.recommendations.map(rec => {
-                const prioClass = `prio-${rec.priority}`;
-                const actionText = rec.action ? `<div class="rec-action">-> ${rec.action}</div>` : '';
-                
-                return `
-                    <div class="recommendation-item">
-                        <span class="${prioClass}">${rec.priority.toUpperCase()} PRIORITY</span>
-                        <div class="rec-message">${rec.message}</div>
-                        ${actionText}
-                    </div>
-                `;
-            }).join('');
-        }
+
 
         function renderPerformanceFeed() {
             const container = document.getElementById('performance-feed');
@@ -1153,16 +1094,6 @@
             } catch (e) {
                 console.error('Rankings failed:', e);
                 document.getElementById('models-count').textContent = status.models_tracked || '-';
-            }
-
-            // -- Step 3: Recommendations (non-critical)
-            try {
-                const recommendations = await fetchAPI('/recommendations');
-                renderRecommendations(recommendations);
-            } catch (e) {
-                console.error('Recommendations failed:', e);
-                document.getElementById('recommendations-panel').innerHTML =
-                    '<p class="loading">Recommendations loading...</p>';
             }
 
             // -- Step 5: Fetch routing recommendations per category (non-critical)
