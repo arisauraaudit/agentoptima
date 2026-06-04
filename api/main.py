@@ -1,4 +1,4 @@
-# AgentOptima API v1.0.2 — cost-aware routing + feedback loop + security oracle + panic
+# AgentOptima API v1.0.3 — cost-aware routing + feedback loop + security oracle + panic + recommendations fix
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
     print(f"   Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.0.2", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.0.3", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -230,7 +230,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.0.2"}
+    return {"status": "healthy", "version": "1.0.3"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -254,7 +254,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.0.2", "tasks_logged": total,
+    return {"status": "running", "version": "1.0.3", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -718,11 +718,11 @@ async def get_recommendations():
             """, (MIN_TASKS,))
             rows = cur.fetchall()
 
-            cur.execute("SELECT COUNT(*) FROM tasks")
-            total_tasks = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) AS cnt FROM tasks")
+            total_tasks = cur.fetchone()["cnt"]
 
-            cur.execute("SELECT COUNT(*) FROM tasks WHERE quality_score IS NOT NULL")
-            scored_tasks = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) AS cnt FROM tasks WHERE quality_score IS NOT NULL")
+            scored_tasks = cur.fetchone()["cnt"]
 
     # Bucket by category
     by_cat = {}
@@ -1253,7 +1253,7 @@ async def panic(request: PanicRequest,
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.0.2",
+        "version": "1.0.3",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
