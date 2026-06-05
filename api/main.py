@@ -1,4 +1,4 @@
-# AgentOptima API v1.1.9 — retire claude-3-haiku + claude-3.5-haiku, keep haiku-4.5 only
+# AgentOptima API v1.1.10 — filter rankings to active registry models only, fix models_tracked KPI
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -205,7 +205,7 @@ def init_db():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_goal_id ON tasks(goal_id)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks(task_id)")
             conn.commit()
-        logger.info("PostgreSQL ready (v1.1.9 + contracts)")
+        logger.info("PostgreSQL ready (v1.1.10 + contracts)")
     except Exception as e:
         logger.warning(f"DB init warning: {e}")
 
@@ -230,11 +230,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    logger.info("AgentOptima API v1.1.9 starting...")
+    logger.info("AgentOptima API v1.1.10 starting...")
     logger.info(f"Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.1.9", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.1.10", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -359,7 +359,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.9"}
+    return {"status": "healthy", "version": "1.1.10"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -369,8 +369,7 @@ async def get_status():
             total = cur.fetchone()[0]
             cur.execute("SELECT COUNT(*) FROM tasks WHERE success=TRUE")
             success = cur.fetchone()[0]
-            cur.execute("SELECT COUNT(DISTINCT model) FROM tasks")
-            models = cur.fetchone()[0]
+            models = len(_MODEL_REGISTRY)  # always reflects active registry, not task history
             cur.execute("SELECT logged_at FROM tasks ORDER BY id DESC LIMIT 1")
             latest = cur.fetchone()
     # Data source breakdown
@@ -383,7 +382,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.9", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.10", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -461,7 +460,7 @@ async def get_rankings(include_subtypes: bool = False):
                 GROUP BY model, task_type
                 ORDER BY success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
             """, (ACTIVE_POOL,))
-            category_rows = cur.fetchall()
+            category_rows = [r for r in cur.fetchall() if r["model"] in _MODEL_REGISTRY]
 
             subtype_rows = []
             if include_subtypes:
@@ -481,7 +480,7 @@ async def get_rankings(include_subtypes: bool = False):
                     GROUP BY model, task_type, task_subtype
                     ORDER BY task_subtype, success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
                 """, (ACTIVE_POOL,))
-                subtype_rows = cur.fetchall()
+                subtype_rows = [r for r in cur.fetchall() if r["model"] in _MODEL_REGISTRY]
 
     return {
         "generated_at": datetime.utcnow().isoformat(),
@@ -806,6 +805,7 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                              AVG(cost_cents) ASC
                 """, (effective_base, min_tasks))
                 rows = cur.fetchall()
+                rows = [r for r in rows if r["model"] in _MODEL_REGISTRY]
 
     if not rows:
         label = effective_subtype or effective_base
@@ -1658,7 +1658,7 @@ async def get_contracts(x_api_key: Optional[str] = Header(None)):
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.9",
+        "version": "1.1.10",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
@@ -2217,7 +2217,7 @@ async def registry_with_benchmarks():
         })
 
     return {
-        "version": "1.1.9",
+        "version": "1.1.10",
         "total_models": len(models_with_bench),
         "models": models_with_bench,
         "note": "Benchmarks updated daily via /api/v1/recalibrate/orchestrator",
