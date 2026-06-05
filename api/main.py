@@ -1,4 +1,4 @@
-# AgentOptima API v1.1.8 — benchmark filter removed from rankings/recommend/models (health_monitor.py handles alerting)
+# AgentOptima API v1.1.9 — retire claude-3-haiku + claude-3.5-haiku, keep haiku-4.5 only
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -205,7 +205,7 @@ def init_db():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_goal_id ON tasks(goal_id)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks(task_id)")
             conn.commit()
-        logger.info("PostgreSQL ready (v1.1.8 + contracts)")
+        logger.info("PostgreSQL ready (v1.1.9 + contracts)")
     except Exception as e:
         logger.warning(f"DB init warning: {e}")
 
@@ -230,11 +230,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    logger.info("AgentOptima API v1.1.8 starting...")
+    logger.info("AgentOptima API v1.1.9 starting...")
     logger.info(f"Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.1.8", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.1.9", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -359,7 +359,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.8"}
+    return {"status": "healthy", "version": "1.1.9"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -383,7 +383,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.8", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.9", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -413,13 +413,11 @@ async def get_models():
 
 ACTIVE_POOL = [
     "anthropic/claude-sonnet-4-6",
-    "anthropic/claude-3-haiku",
     "deepseek/deepseek-v4-flash",
     "openai/gpt-4o-mini",
     "google/gemini-2.0-flash-001",
     "anthropic/claude-haiku-4.5",
     "openai/o3-mini",
-    "anthropic/claude-3.5-haiku",
 ]
 
 # ── Per-task-type quality tolerance ───────────────────────────────────────────
@@ -1219,9 +1217,7 @@ _MODEL_REGISTRY = {
     "openai/gpt-oss-120b:free":     {"cost": 0.000, "tier": "free",        "speed": "slow",   "strength": "OSS 120B, free tier, higher quality"},
     "google/gemma-4-31b-it:free":   {"cost": 0.000, "tier": "free",        "speed": "medium", "strength": "Gemma 4 31B, free tier, instruction-tuned"},
     # Mid
-    "anthropic/claude-3-haiku":     {"cost": 0.191, "tier": "mid",         "speed": "fast",   "strength": "balanced quality/cost"},
     "anthropic/claude-haiku-4.5":   {"cost": 0.22,  "tier": "mid",         "speed": "fast",   "strength": "latest haiku, improved reasoning"},
-    "anthropic/claude-3.5-haiku":   {"cost": 0.20,  "tier": "mid",         "speed": "fast",   "strength": "next-gen haiku, strong all-round"},
     "openai/o3-mini":               {"cost": 0.40,  "tier": "mid",         "speed": "medium", "strength": "math, reasoning, coding precision"},
     # Quality
     "anthropic/claude-sonnet-4-6":  {"cost": 0.689, "tier": "quality",     "speed": "medium", "strength": "strategy, complex tasks, coding"},
@@ -1662,7 +1658,7 @@ async def get_contracts(x_api_key: Optional[str] = Header(None)):
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.8",
+        "version": "1.1.9",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
@@ -2221,7 +2217,7 @@ async def registry_with_benchmarks():
         })
 
     return {
-        "version": "1.1.8",
+        "version": "1.1.9",
         "total_models": len(models_with_bench),
         "models": models_with_bench,
         "note": "Benchmarks updated daily via /api/v1/recalibrate/orchestrator",
