@@ -1431,8 +1431,8 @@ loadContracts();
                 _subtypeRows = rankResult.subtypes || [];
                 _subtypeProgress = await fetchSubtypeProgress();
                 renderRankings(rankingsData, {}, _subtypeRows, _subtypeProgress);
-                const uniqueModels = new Set(rankingsData.map(m => m.model)).size;
-                document.getElementById('models-count').textContent = uniqueModels || status.models_tracked || '-';
+                // Always use registry count from /status, not ranked model count
+                document.getElementById('models-count').textContent = status.models_tracked || '-';
             } catch (e) {
                 console.error('Rankings failed:', e);
                 document.getElementById('models-count').textContent = status.models_tracked || '-';
