@@ -551,6 +551,120 @@
             <span style="white-space:nowrap">🧠 Sonnet only for strategy & security</span>
         </div>
 
+
+        <div class="section">
+            <h2 class="section-title">🏆 Live Model Rankings</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — AgentOptima Score combines quality, reliability and cost efficiency across 400K+ real inference outcomes.
+            </p>
+            <div id="rankings-accordion">
+                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading rankings…</div>
+            </div>
+        </div>
+
+        <!-- ── Routing Map ─────────────────────────────────────────────── -->
+        <div class="section" id="routing-map-section">
+            <h2 class="section-title">🗺️ Routing Map</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                Every task type routes to the best model — backed by <strong style="color:#f1f5f9">400K+ inference outcomes</strong> from live benchmarks, LMSys Arena, and RouterBench (UC Berkeley). Send any task to <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/recommend</code> and get the optimal model instantly.
+            </p>
+            <div id="routing-map-container">
+                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading routing map…</div>
+            </div>
+        </div>
+
+        <div class="section" id="recent-tasks-section">
+            <h2 class="section-title">⚡ Live Task Feed</h2>
+            <p style="color:#94a3b8;margin-bottom:1.5rem;font-size:0.95rem" class="section-desc">Most recent tasks logged across all agents and models. Updates every 15s.</p>
+            <div id="recent-tasks-feed" style="display:flex;flex-direction:column;gap:0.5rem">
+                <div style="color:#64748b;padding:1rem;text-align:center">Loading recent tasks…</div>
+            </div>
+        </div>
+
+        <!-- ── Adaptive Context Manager ─────────────────────────────────────── -->
+        <div class="section" id="context-manager-section">
+            <h2 class="section-title">🧹 Adaptive Context Manager</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                Long conversations get expensive fast. AgentOptima monitors your session's token growth pattern and sets a <strong style="color:#f1f5f9">personalized</strong> prune threshold — not a one-size-fits-all number. Light users might never trigger it. Heavy builders get an aggressive threshold tuned to their exact growth curve. <strong style="color:#f1f5f9">Zero config. Invisible to your users.</strong>
+            </p>
+
+            <!-- Stats -->
+            <div id="cm-stats-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem">
+                <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#10b981">Up to 65%</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Cost Reduction</div>
+                </div>
+                <div style="background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#818cf8">Adaptive</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Prune Threshold</div>
+                    <div style="color:#64748b;font-size:0.75rem;margin-top:0.35rem">learns your pattern</div>
+                </div>
+                <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#f59e0b">Zero Config</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Setup Required</div>
+                </div>
+            </div>
+
+            <!-- Feature Breakdown -->
+            <div id="cm-feature-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem">
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
+                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">⚡ Automatic</div>
+                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Fires silently when context crosses threshold. No commands, no user action.</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
+                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">🎯 Precise</div>
+                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Keeps last 6 messages intact. Summarizes older history into a 200-word bullet block.</p>
+                </div>
+                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
+                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">📊 Measurable</div>
+                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Every compression logged. See exactly how much you saved per session.</p>
+                </div>
+            </div>
+
+            <!-- Code Snippet -->
+            <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:1.5rem">
+                <div style="background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);padding:0.6rem 1rem;display:flex;align-items:center;gap:0.4rem">
+                    <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                    <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+                    <span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>
+                    <span style="color:rgba(255,255,255,0.3);font-size:0.78rem;margin-left:0.5rem">POST /api/v1/context/prune</span>
+                </div>
+                <pre style="padding:1.25rem;font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.75);overflow-x:auto;margin:0;max-width:100%;word-break:break-all;font-family:'JetBrains Mono','Fira Code',monospace"><span style="color:#10b981">POST</span> <span style="color:#818cf8">/api/v1/context/prune</span>
+{
+  <span style="color:#f59e0b">"session_id"</span>: <span style="color:#34d399">"your-session"</span>,
+  <span style="color:#f59e0b">"current_tokens"</span>: <span style="color:#f472b6">54000</span>,
+  <span style="color:#f59e0b">"strategy"</span>: <span style="color:#34d399">"balanced"</span>
+}
+<span style="color:rgba(255,255,255,0.3)">// response</span>
+→ { <span style="color:#f59e0b">"should_prune"</span>: <span style="color:#60a5fa">true</span>, <span style="color:#f59e0b">"tokens_to_prune"</span>: <span style="color:#f472b6">39000</span>, <span style="color:#f59e0b">"estimated_cost_saved_cents"</span>: <span style="color:#f472b6">8.42</span> }</pre>
+            </div>
+
+            <!-- Second snippet: analyze endpoint -->
+            <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:1.5rem">
+                <div style="background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);padding:0.6rem 1rem;display:flex;align-items:center;gap:0.4rem">
+                    <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
+                    <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
+                    <span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>
+                    <span style="color:rgba(255,255,255,0.3);font-size:0.78rem;margin-left:0.5rem">POST /api/v1/context/analyze</span>
+                </div>
+                <pre style="padding:1.25rem;font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.75);overflow-x:auto;margin:0;max-width:100%;word-break:break-all;font-family:'JetBrains Mono','Fira Code',monospace"><span style="color:#10b981">POST</span> <span style="color:#818cf8">/api/v1/context/analyze</span>
+{
+  <span style="color:#f59e0b">"session_id"</span>: <span style="color:#34d399">"your-session"</span>,
+  <span style="color:#f59e0b">"token_history"</span>: [<span style="color:#f472b6">4000</span>, <span style="color:#f472b6">8200</span>, <span style="color:#f472b6">13100</span>, <span style="color:#f472b6">19500</span>, <span style="color:#f472b6">27800</span>],
+  <span style="color:#f59e0b">"strategy"</span>: <span style="color:#34d399">"adaptive"</span>
+}
+<span style="color:rgba(255,255,255,0.3)">// response</span>
+
+→ { <span style="color:#f59e0b">"recommended_threshold"</span>: <span style="color:#f472b6">26410</span>, <span style="color:#f59e0b">"growth_rate_per_msg"</span>: <span style="color:#f472b6">5950</span>, <span style="color:#f59e0b">"strategy"</span>: <span style="color:#34d399">"adaptive"</span> }</pre>
+            </div>
+
+            <!-- Callout -->
+            <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:1.25rem;font-size:0.9rem;color:#94a3b8;line-height:1.6">
+                💡 <strong style="color:#10b981">Your threshold. Your data.</strong> Light users (2K tokens/msg) get a ~30K threshold. Heavy builders (5K tokens/msg) get ~76K. AgentOptima computes yours on first use and recalibrates weekly.
+            </div>
+        </div>
+        <!-- ── /Adaptive Context Manager ────────────────────────────────────── -->
+
         <!-- ── Routing Intelligence ─────────────────────────────────────── -->
         <div class="section" id="routing-intelligence-section">
             <h2 class="section-title">🧠 Routing Intelligence</h2>
@@ -574,27 +688,73 @@
         </div>
         <!-- ── /Routing Intelligence ──────────────────────────────────────── -->
 
-        <div class="section">
-            <h2 class="section-title">🏆 Live Model Rankings</h2>
+        <!-- ── Routing Gate ────────────────────────────────────────── -->
+        <div class="section" id="gate-section">
+            <h2 class="section-title">🛡️ Routing Gate</h2>
             <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — AgentOptima Score combines quality, reliability and cost efficiency across 400K+ real inference outcomes.
+                Every task passes through <strong style="color:#f1f5f9">3 checks</strong> before a sub-agent spawns:
+                risk scan → model selection → cost estimate.
+                Critical tasks are <strong style="color:#ef4444">blocked automatically</strong>.
             </p>
-            <div id="rankings-accordion">
-                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading rankings…</div>
+
+            <!-- Gate Stats -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem" id="gate-stats-grid">
+                <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#10b981" id="gate-total">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Total Checks</div>
+                </div>
+                <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#ef4444" id="gate-blocked">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Blocked</div>
+                </div>
+                <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#f59e0b" id="gate-high">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">High Risk</div>
+                </div>
+                <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:1.25rem;text-align:center">
+                    <div style="font-size:1.8rem;font-weight:800;color:#818cf8" id="gate-feedback">--</div>
+                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Feedback Signals</div>
+                </div>
+            </div>
+
+            <!-- Live Demo -->
+            <div style="background:rgba(15,23,42,0.8);border:1px solid rgba(148,163,184,0.15);border-radius:16px;padding:1.75rem;margin-bottom:2rem">
+                <p style="color:#e2e8f0;font-weight:600;margin-bottom:1rem;font-size:0.95rem">⚡ Try the Gate Live</p>
+                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem">
+                    <input
+                        id="gate-demo-input"
+                        type="text"
+                        placeholder="Describe a task... e.g. \"build a Python parser\" or \"delete all data\""
+                        style="flex:1;min-width:240px;background:rgba(30,41,59,0.9);border:1px solid rgba(148,163,184,0.2);border-radius:10px;padding:0.7rem 1rem;color:#f1f5f9;font-size:0.9rem;font-family:inherit;outline:none;transition:border-color 0.2s"
+                        onfocus="this.style.borderColor='#10b981'"
+                        onblur="this.style.borderColor='rgba(148,163,184,0.2)'"
+                        onkeydown="if(event.key==='Enter') runGateDemo()"
+                    />
+                    <button
+                        onclick="runGateDemo()"
+                        style="background:#10b981;color:#0f172a;border:none;border-radius:10px;padding:0.7rem 1.5rem;font-weight:700;font-size:0.9rem;cursor:pointer;font-family:inherit;transition:all 0.2s;white-space:nowrap"
+                        onmouseover="this.style.background='#059669'"
+                        onmouseout="this.style.background='#10b981'"
+                    >Check Risk</button>
+                </div>
+                <!-- Quick examples -->
+                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.25rem">
+                    <span style="color:#475569;font-size:0.78rem;margin-right:0.25rem;line-height:2">Try:</span>
+                    <button onclick="gateQuick('build a Python function to parse JSON')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">build a JSON parser</button>
+                    <button onclick="gateQuick('delete all tasks from the database')" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">delete all database tasks</button>
+                    <button onclick="gateQuick('design the go-to-market strategy')" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">design go-to-market strategy</button>
+                    <button onclick="gateQuick('push to production without testing')" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">push to production</button>
+                </div>
+                <div id="gate-demo-result" style="display:none"></div>
+            </div>
+
+            <!-- Recent Gate Decisions -->
+            <p style="color:#64748b;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem">Recent Gate Decisions</p>
+            <div id="gate-recent-feed" style="display:flex;flex-direction:column;gap:0.4rem">
+                <div style="color:#475569;font-size:0.85rem;padding:1rem;text-align:center">Loading gate history…</div>
             </div>
         </div>
-
-        <!-- ── Routing Map ─────────────────────────────────────────────── -->
-        <div class="section" id="routing-map-section">
-            <h2 class="section-title">🗺️ Routing Map</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                Every task type routes to the best model — backed by <strong style="color:#f1f5f9">400K+ inference outcomes</strong> from live benchmarks, LMSys Arena, and RouterBench (UC Berkeley). Send any task to <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/recommend</code> and get the optimal model instantly.
-            </p>
-            <div id="routing-map-container">
-                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading routing map…</div>
-            </div>
-        </div>
-
+        <!-- ── /Routing Gate ───────────────────────────────────────── -->
 
 <!-- ── 🧠 Orchestrator Intelligence ─────────────────────────────────────────────────── -->
 <div class="section" id="orchestrator-section">
@@ -739,8 +899,7 @@ loadOrchestratorData();
 setInterval(loadOrchestratorData, 60000);
 </script>
 
-
-
+        <!-- ── Routing Map ─────────────────────────────────────────────── -->
 
 <!-- ── 🚀 Dynamic Escalation Activity ────────────────────────────────────────── -->
 <div class="section" id="escalation-section">
@@ -913,168 +1072,14 @@ setInterval(loadEscalationData, 30000);
 </script>
 
 
-
-        <!-- ── Routing Gate ────────────────────────────────────────── -->
-        <div class="section" id="gate-section">
-            <h2 class="section-title">🛡️ Routing Gate</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                Every task passes through <strong style="color:#f1f5f9">3 checks</strong> before a sub-agent spawns:
-                risk scan → model selection → cost estimate.
-                Critical tasks are <strong style="color:#ef4444">blocked automatically</strong>.
-            </p>
-
-            <!-- Gate Stats -->
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem" id="gate-stats-grid">
-                <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:#10b981" id="gate-total">--</div>
-                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Total Checks</div>
-                </div>
-                <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:#ef4444" id="gate-blocked">--</div>
-                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Blocked</div>
-                </div>
-                <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:#f59e0b" id="gate-high">--</div>
-                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">High Risk</div>
-                </div>
-                <div style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:#818cf8" id="gate-feedback">--</div>
-                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Feedback Signals</div>
-                </div>
-            </div>
-
-            <!-- Live Demo -->
-            <div style="background:rgba(15,23,42,0.8);border:1px solid rgba(148,163,184,0.15);border-radius:16px;padding:1.75rem;margin-bottom:2rem">
-                <p style="color:#e2e8f0;font-weight:600;margin-bottom:1rem;font-size:0.95rem">⚡ Try the Gate Live</p>
-                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1rem">
-                    <input
-                        id="gate-demo-input"
-                        type="text"
-                        placeholder="Describe a task... e.g. \"build a Python parser\" or \"delete all data\""
-                        style="flex:1;min-width:240px;background:rgba(30,41,59,0.9);border:1px solid rgba(148,163,184,0.2);border-radius:10px;padding:0.7rem 1rem;color:#f1f5f9;font-size:0.9rem;font-family:inherit;outline:none;transition:border-color 0.2s"
-                        onfocus="this.style.borderColor='#10b981'"
-                        onblur="this.style.borderColor='rgba(148,163,184,0.2)'"
-                        onkeydown="if(event.key==='Enter') runGateDemo()"
-                    />
-                    <button
-                        onclick="runGateDemo()"
-                        style="background:#10b981;color:#0f172a;border:none;border-radius:10px;padding:0.7rem 1.5rem;font-weight:700;font-size:0.9rem;cursor:pointer;font-family:inherit;transition:all 0.2s;white-space:nowrap"
-                        onmouseover="this.style.background='#059669'"
-                        onmouseout="this.style.background='#10b981'"
-                    >Check Risk</button>
-                </div>
-                <!-- Quick examples -->
-                <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1.25rem">
-                    <span style="color:#475569;font-size:0.78rem;margin-right:0.25rem;line-height:2">Try:</span>
-                    <button onclick="gateQuick('build a Python function to parse JSON')" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">build a JSON parser</button>
-                    <button onclick="gateQuick('delete all tasks from the database')" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">delete all database tasks</button>
-                    <button onclick="gateQuick('design the go-to-market strategy')" style="background:rgba(245,158,11,0.1);color:#f59e0b;border:1px solid rgba(245,158,11,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">design go-to-market strategy</button>
-                    <button onclick="gateQuick('push to production without testing')" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:0.2rem 0.75rem;font-size:0.78rem;cursor:pointer;font-family:inherit">push to production</button>
-                </div>
-                <div id="gate-demo-result" style="display:none"></div>
-            </div>
-
-            <!-- Recent Gate Decisions -->
-            <p style="color:#64748b;font-size:0.8rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.75rem">Recent Gate Decisions</p>
-            <div id="gate-recent-feed" style="display:flex;flex-direction:column;gap:0.4rem">
-                <div style="color:#475569;font-size:0.85rem;padding:1rem;text-align:center">Loading gate history…</div>
-            </div>
-        </div>
-        <!-- ── /Routing Gate ───────────────────────────────────────── -->
-
         <!-- ── Adaptive Context Manager ─────────────────────────────────────── -->
-        <div class="section" id="context-manager-section">
-            <h2 class="section-title">🧹 Adaptive Context Manager</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                Long conversations get expensive fast. AgentOptima monitors your session's token growth pattern and sets a <strong style="color:#f1f5f9">personalized</strong> prune threshold — not a one-size-fits-all number. Light users might never trigger it. Heavy builders get an aggressive threshold tuned to their exact growth curve. <strong style="color:#f1f5f9">Zero config. Invisible to your users.</strong>
-            </p>
-
-            <!-- Stats -->
-            <div id="cm-stats-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:2rem">
-                <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:#10b981">Up to 65%</div>
-                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Cost Reduction</div>
-                </div>
-                <div style="background:rgba(129,140,248,0.08);border:1px solid rgba(129,140,248,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:#818cf8">Adaptive</div>
-                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Prune Threshold</div>
-                    <div style="color:#64748b;font-size:0.75rem;margin-top:0.35rem">learns your pattern</div>
-                </div>
-                <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-                    <div style="font-size:1.8rem;font-weight:800;color:#f59e0b">Zero Config</div>
-                    <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">Setup Required</div>
-                </div>
-            </div>
-
-            <!-- Feature Breakdown -->
-            <div id="cm-feature-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:2rem">
-                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
-                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">⚡ Automatic</div>
-                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Fires silently when context crosses threshold. No commands, no user action.</p>
-                </div>
-                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
-                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">🎯 Precise</div>
-                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Keeps last 6 messages intact. Summarizes older history into a 200-word bullet block.</p>
-                </div>
-                <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1.25rem">
-                    <div style="font-weight:700;color:#f1f5f9;margin-bottom:0.5rem">📊 Measurable</div>
-                    <p style="color:#64748b;font-size:0.85rem;line-height:1.5;margin:0">Every compression logged. See exactly how much you saved per session.</p>
-                </div>
-            </div>
-
-            <!-- Code Snippet -->
-            <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:1.5rem">
-                <div style="background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);padding:0.6rem 1rem;display:flex;align-items:center;gap:0.4rem">
-                    <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
-                    <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
-                    <span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>
-                    <span style="color:rgba(255,255,255,0.3);font-size:0.78rem;margin-left:0.5rem">POST /api/v1/context/prune</span>
-                </div>
-                <pre style="padding:1.25rem;font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.75);overflow-x:auto;margin:0;max-width:100%;word-break:break-all;font-family:'JetBrains Mono','Fira Code',monospace"><span style="color:#10b981">POST</span> <span style="color:#818cf8">/api/v1/context/prune</span>
-{
-  <span style="color:#f59e0b">"session_id"</span>: <span style="color:#34d399">"your-session"</span>,
-  <span style="color:#f59e0b">"current_tokens"</span>: <span style="color:#f472b6">54000</span>,
-  <span style="color:#f59e0b">"strategy"</span>: <span style="color:#34d399">"balanced"</span>
-}
-<span style="color:rgba(255,255,255,0.3)">// response</span>
-→ { <span style="color:#f59e0b">"should_prune"</span>: <span style="color:#60a5fa">true</span>, <span style="color:#f59e0b">"tokens_to_prune"</span>: <span style="color:#f472b6">39000</span>, <span style="color:#f59e0b">"estimated_cost_saved_cents"</span>: <span style="color:#f472b6">8.42</span> }</pre>
-            </div>
-
-            <!-- Second snippet: analyze endpoint -->
-            <div style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.06);border-radius:12px;overflow:hidden;margin-bottom:1.5rem">
-                <div style="background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);padding:0.6rem 1rem;display:flex;align-items:center;gap:0.4rem">
-                    <span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block"></span>
-                    <span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
-                    <span style="width:10px;height:10px;border-radius:50%;background:#10b981;display:inline-block"></span>
-                    <span style="color:rgba(255,255,255,0.3);font-size:0.78rem;margin-left:0.5rem">POST /api/v1/context/analyze</span>
-                </div>
-                <pre style="padding:1.25rem;font-size:0.82rem;line-height:1.7;color:rgba(255,255,255,0.75);overflow-x:auto;margin:0;max-width:100%;word-break:break-all;font-family:'JetBrains Mono','Fira Code',monospace"><span style="color:#10b981">POST</span> <span style="color:#818cf8">/api/v1/context/analyze</span>
-{
-  <span style="color:#f59e0b">"session_id"</span>: <span style="color:#34d399">"your-session"</span>,
-  <span style="color:#f59e0b">"token_history"</span>: [<span style="color:#f472b6">4000</span>, <span style="color:#f472b6">8200</span>, <span style="color:#f472b6">13100</span>, <span style="color:#f472b6">19500</span>, <span style="color:#f472b6">27800</span>],
-  <span style="color:#f59e0b">"strategy"</span>: <span style="color:#34d399">"adaptive"</span>
-}
-<span style="color:rgba(255,255,255,0.3)">// response</span>
-→ { <span style="color:#f59e0b">"recommended_threshold"</span>: <span style="color:#f472b6">26410</span>, <span style="color:#f59e0b">"growth_rate_per_msg"</span>: <span style="color:#f472b6">5950</span>, <span style="color:#f59e0b">"strategy"</span>: <span style="color:#34d399">"adaptive"</span> }</pre>
-            </div>
-
-            <!-- Callout -->
-            <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.3);border-radius:12px;padding:1.25rem;font-size:0.9rem;color:#94a3b8;line-height:1.6">
-                💡 <strong style="color:#10b981">Your threshold. Your data.</strong> Light users (2K tokens/msg) get a ~30K threshold. Heavy builders (5K tokens/msg) get ~76K. AgentOptima computes yours on first use and recalibrates weekly.
-            </div>
-        </div>
         <!-- ── /Adaptive Context Manager ────────────────────────────────────── -->
 
-        <div class="section" id="recent-tasks-section">
-            <h2 class="section-title">⚡ Live Task Feed</h2>
-            <p style="color:#94a3b8;margin-bottom:1.5rem;font-size:0.95rem" class="section-desc">Most recent tasks logged across all agents and models. Updates every 15s.</p>
-            <div id="recent-tasks-feed" style="display:flex;flex-direction:column;gap:0.5rem">
-                <div style="color:#64748b;padding:1rem;text-align:center">Loading recent tasks…</div>
-            </div>
-        </div>
+        <!-- ── Routing Intelligence ─────────────────────────────────────── -->
+        <!-- ── /Routing Intelligence ──────────────────────────────────────── -->
 
-
-
+        <!-- ── Routing Gate ────────────────────────────────────────── -->
+        <!-- ── /Routing Gate ───────────────────────────────────────── -->
 
         <!-- ── Connect Your Agent — COMING SOON (security audit in progress) ── -->
         <div class="section" id="connect-section">
@@ -1095,6 +1100,7 @@ setInterval(loadEscalationData, 30000);
             </div>
         </div>
         <!-- ── /Connect Your Agent ─────────────────────────────────────── -->
+
 
         <footer>
             <p>AgentOptima v1.0.5 • Built by Aris • 400K+ inference outcomes • RouterBench + LMSys Arena + Live benchmarks</p>
