@@ -327,7 +327,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.0"}
+    return {"status": "healthy", "version": "1.1.2"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -351,7 +351,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.0", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.2", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -1503,7 +1503,7 @@ async def panic(request: PanicRequest,
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.0",
+        "version": "1.1.2",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
@@ -2062,7 +2062,7 @@ async def registry_with_benchmarks():
         })
 
     return {
-        "version": "1.1.1",
+        "version": "1.1.2",
         "total_models": len(models_with_bench),
         "models": models_with_bench,
         "note": "Benchmarks updated daily via /api/v1/recalibrate/orchestrator",
