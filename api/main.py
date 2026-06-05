@@ -1,4 +1,4 @@
-# AgentOptima API v1.1.4 — worker contracts registry + Phase D support
+# AgentOptima API v1.1.7 — exclude benchmark data from live success rate calculations
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -359,7 +359,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.6"}
+    return {"status": "healthy", "version": "1.1.7"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -383,7 +383,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.6", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.7", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -399,7 +399,9 @@ async def get_models():
                     ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
                     ROUND(AVG(duration_s)::numeric,2) AS avg_duration_s,
                     ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents
-                FROM tasks GROUP BY model
+                FROM tasks
+                WHERE (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
+                GROUP BY model
             """)
             rows = {r["model"]: dict(r) for r in cur.fetchall()}
     return {"pool_size": len(MODEL_POOL), "models": [
@@ -459,6 +461,7 @@ async def get_rankings(include_subtypes: bool = False):
                     , 4) AS cost_per_success
                 FROM tasks
                 WHERE model = ANY(%s)
+                  AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                 GROUP BY model, task_type
                 ORDER BY success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
             """, (ACTIVE_POOL,))
@@ -479,6 +482,7 @@ async def get_rankings(include_subtypes: bool = False):
                         , 4) AS cost_per_success
                     FROM tasks
                     WHERE model = ANY(%s) AND task_subtype IS NOT NULL
+                      AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                     GROUP BY model, task_type, task_subtype
                     ORDER BY task_subtype, success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
                 """, (ACTIVE_POOL,))
@@ -507,6 +511,7 @@ async def get_subtype_progress():
                 FROM tasks
                 WHERE task_subtype IS NOT NULL AND model = ANY(%s)
                   AND task_subtype NOT ILIKE '%chinese%'
+                  AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                 GROUP BY task_subtype, model
                 ORDER BY task_subtype, n DESC
                 LIMIT 2000
@@ -752,6 +757,7 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                         AVG(quality_score) AS avg_quality
                     FROM tasks
                     WHERE task_type=%s AND task_subtype=%s
+                      AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                     GROUP BY model HAVING COUNT(*) >= %s
                     ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
                              AVG(quality_score) DESC NULLS LAST,
@@ -766,7 +772,9 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                             AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
                             AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
                             AVG(quality_score) AS avg_quality
-                        FROM tasks WHERE task_type=%s
+                        FROM tasks
+                        WHERE task_type=%s
+                          AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                         GROUP BY model HAVING COUNT(*) >= %s
                         ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
                                  AVG(quality_score) DESC NULLS LAST,
@@ -798,7 +806,9 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                         AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
                         AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
                         AVG(quality_score) AS avg_quality
-                    FROM tasks WHERE task_type=%s
+                    FROM tasks
+                    WHERE task_type=%s
+                      AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                     GROUP BY model HAVING COUNT(*) >= %s
                     ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
                              AVG(quality_score) DESC NULLS LAST,
@@ -870,6 +880,7 @@ async def get_efficiency():
                     , 4) AS cost_per_success
                 FROM tasks
                 WHERE model = ANY(%s)
+                  AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                 GROUP BY model, task_type
                 HAVING COUNT(*) >= %s
                 ORDER BY cost_per_success ASC NULLS LAST
@@ -994,6 +1005,7 @@ async def get_recommendations():
                        ROUND(AVG(quality_score)::numeric,2) AS avg_quality,
                        COUNT(quality_score) AS quality_samples
                 FROM tasks
+                WHERE (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                 GROUP BY model, task_type
                 HAVING COUNT(*) >= %s
                 ORDER BY task_type, success_rate DESC, avg_cost_cents ASC
@@ -1373,7 +1385,7 @@ async def submit_feedback(request: FeedbackRequest,
             with get_db() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
-                        "SELECT AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) FROM tasks WHERE model=%s AND task_type=%s",
+                        "SELECT AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) FROM tasks WHERE model=%s AND task_type=%s AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))",
                         (model_id, request.task_type)
                     )
                     row = cur.fetchone()
@@ -1659,7 +1671,7 @@ async def get_contracts(x_api_key: Optional[str] = Header(None)):
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.6",
+        "version": "1.1.7",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
@@ -2042,6 +2054,7 @@ async def recalibrate_orchestrator(
                         ROUND(AVG(quality_score)::numeric, 2) AS avg_quality
                     FROM tasks
                     WHERE task_type = 'orchestration' AND success = TRUE
+                      AND (notes IS NULL OR (notes NOT ILIKE '%source:routerbench%' AND notes NOT ILIKE '%source:arena55k%'))
                     GROUP BY model
                     HAVING COUNT(*) >= 5
                     ORDER BY
