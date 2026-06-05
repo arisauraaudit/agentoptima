@@ -1,4 +1,4 @@
-# AgentOptima API v1.1.2 — structured logging + global exception handler + request tracking
+# AgentOptima API v1.1.3 — structured logging + global exception handler + request tracking
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -195,8 +195,17 @@ def init_db():
                 cur.execute("ALTER TABLE model_benchmarks ADD COLUMN IF NOT EXISTS total_score REAL")
                 cur.execute("ALTER TABLE model_benchmarks ADD COLUMN IF NOT EXISTS value_score REAL")
                 cur.execute("ALTER TABLE model_benchmarks ADD COLUMN IF NOT EXISTS benchmark_name TEXT")
+                # v1.1.3 migrations — task state layer
+                cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'completed'")
+                cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS retries INTEGER DEFAULT 0")
+                cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS error_type TEXT DEFAULT NULL")
+                cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS error_msg TEXT DEFAULT NULL")
+                cur.execute("ALTER TABLE tasks ADD COLUMN IF NOT EXISTS goal_id TEXT DEFAULT NULL")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_goal_id ON tasks(goal_id)")
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks(task_id)")
             conn.commit()
-        logger.info("PostgreSQL ready (v1.0.5 + orchestrator)")
+        logger.info("PostgreSQL ready (v1.1.3 + task-state)")
     except Exception as e:
         logger.warning(f"DB init warning: {e}")
 
@@ -221,11 +230,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    logger.info("AgentOptima API v1.1.2 starting...")
+    logger.info("AgentOptima API v1.1.3 starting...")
     logger.info(f"Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.1.2", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.1.3", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -273,6 +282,29 @@ class TrackRequest(BaseModel):
     parent_task_id: Optional[str]    = None
     is_subtask: bool                 = False
     task_subtype: Optional[str]      = None
+
+class TaskStateUpdate(BaseModel):
+    task_id: str
+    status: str  # pending / running / success / failed / retry
+    retries: Optional[int]    = None
+    error_type: Optional[str] = None
+    error_msg: Optional[str]  = None
+    goal_id: Optional[str]    = None
+    output_text: Optional[str] = None
+    cost_cents: Optional[float] = None
+    duration_s: Optional[int]   = None
+
+class GoalQuery(BaseModel):
+    goal_id: str
+
+class TaskRegisterRequest(BaseModel):
+    task_id: str
+    task_type: Optional[str]   = None
+    task_desc: Optional[str]   = None
+    model: Optional[str]       = None
+    status: Optional[str]      = "pending"
+    goal_id: Optional[str]     = None
+    agent_name: Optional[str]  = "aris"
 
 # ── Public endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
@@ -327,7 +359,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.2"}
+    return {"status": "healthy", "version": "1.1.3"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -351,7 +383,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.2", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.3", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -1503,7 +1535,7 @@ async def panic(request: PanicRequest,
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.2",
+        "version": "1.1.3",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
@@ -2062,7 +2094,7 @@ async def registry_with_benchmarks():
         })
 
     return {
-        "version": "1.1.2",
+        "version": "1.1.3",
         "total_models": len(models_with_bench),
         "models": models_with_bench,
         "note": "Benchmarks updated daily via /api/v1/recalibrate/orchestrator",
@@ -2459,3 +2491,147 @@ async def escalation_public():
             "last_5_events": [],
             "error": str(e),
         }
+
+
+# ── Task State Layer (v1.1.3) ──────────────────────────────────────────────────
+
+@app.post("/api/v1/tasks/register")
+async def register_task(request: TaskRegisterRequest,
+                        x_api_key: Optional[str] = Header(None)):
+    """Register a task as pending before spawn. Called by spawn_gate.pre_spawn()."""
+    verify_key(x_api_key)
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO tasks
+                        (task_id, task_type, task_desc, model, status, goal_id,
+                         agent_name, logged_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT DO NOTHING
+                """, (
+                    request.task_id,
+                    request.task_type or "general",
+                    (request.task_desc or "")[:500],
+                    request.model or "unknown",
+                    request.status or "pending",
+                    request.goal_id,
+                    request.agent_name or "aris",
+                ))
+            conn.commit()
+        return {"task_id": request.task_id, "registered": True}
+    except Exception as e:
+        logger.error(f"register_task error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/v1/tasks/{task_id}/state")
+async def update_task_state(task_id: str, request: TaskStateUpdate,
+                            x_api_key: Optional[str] = Header(None)):
+    """Update task state after worker completes. Called by orchestrator."""
+    verify_key(x_api_key)
+    valid_statuses = {"pending", "running", "success", "failed", "retry", "completed"}
+    if request.status not in valid_statuses:
+        raise HTTPException(status_code=422, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                fields, values = [], []
+                fields.append("status = %s");      values.append(request.status)
+                if request.retries    is not None: fields.append("retries = %s");    values.append(request.retries)
+                if request.error_type is not None: fields.append("error_type = %s"); values.append(request.error_type)
+                if request.error_msg  is not None: fields.append("error_msg = %s");  values.append(request.error_msg)
+                if request.goal_id    is not None: fields.append("goal_id = %s");    values.append(request.goal_id)
+                if request.output_text is not None: fields.append("output_text = %s"); values.append(request.output_text[:2000])
+                if request.cost_cents  is not None: fields.append("cost_cents = %s");  values.append(request.cost_cents)
+                if request.duration_s  is not None: fields.append("duration_s = %s");  values.append(request.duration_s)
+                values.append(task_id)
+                cur.execute(
+                    f"UPDATE tasks SET {', '.join(fields)} WHERE task_id = %s",
+                    values
+                )
+            conn.commit()
+        return {"task_id": task_id, "status": request.status, "updated": True}
+    except Exception as e:
+        logger.error(f"update_task_state error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/tasks/failed")
+async def get_failed_tasks(x_api_key: Optional[str] = Header(None)):
+    """List last 50 failed tasks with error details."""
+    verify_key(x_api_key)
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT task_id, task_type, task_desc, model, status,
+                           error_type, error_msg, retries, cost_cents,
+                           agent_name, logged_at
+                    FROM tasks
+                    WHERE status = 'failed' OR success = FALSE
+                    ORDER BY logged_at DESC
+                    LIMIT 50
+                """)
+                rows = [dict(r) for r in cur.fetchall()]
+        return {"failed_tasks": rows, "count": len(rows)}
+    except Exception as e:
+        logger.error(f"get_failed_tasks error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/tasks/{task_id}")
+async def get_task(task_id: str, x_api_key: Optional[str] = Header(None)):
+    """Fetch a single task record by task_id."""
+    verify_key(x_api_key)
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, task_id, task_type, task_desc, model,
+                           duration_s, cost_cents, success, notes, agent_name,
+                           logged_at, output_text, quality_score, parent_task_id,
+                           is_subtask, task_subtype, status, retries,
+                           error_type, error_msg, goal_id
+                    FROM tasks WHERE task_id = %s
+                    ORDER BY logged_at DESC LIMIT 1
+                """, (task_id,))
+                row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Task {task_id!r} not found")
+        return dict(row)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"get_task error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/goals/{goal_id}")
+async def get_goal(goal_id: str, x_api_key: Optional[str] = Header(None)):
+    """Fetch all tasks under a goal_id with summary stats."""
+    verify_key(x_api_key)
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT task_id, task_type, task_desc, model, status,
+                           error_type, error_msg, retries, cost_cents,
+                           success, agent_name, logged_at, duration_s
+                    FROM tasks WHERE goal_id = %s
+                    ORDER BY logged_at ASC
+                """, (goal_id,))
+                rows = [dict(r) for r in cur.fetchall()]
+
+        summary = {
+            "total":            len(rows),
+            "success":          sum(1 for r in rows if r["status"] == "success" or r["success"]),
+            "failed":           sum(1 for r in rows if r["status"] == "failed"),
+            "pending":          sum(1 for r in rows if r["status"] == "pending"),
+            "retry":            sum(1 for r in rows if r["status"] == "retry"),
+            "total_cost_cents": round(sum(r["cost_cents"] or 0 for r in rows), 4),
+        }
+        return {"goal_id": goal_id, "tasks": rows, "summary": summary}
+    except Exception as e:
+        logger.error(f"get_goal error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
