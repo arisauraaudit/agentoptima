@@ -2563,7 +2563,7 @@ async def get_failed_tasks(x_api_key: Optional[str] = Header(None)):
     verify_key(x_api_key)
     try:
         with get_db() as conn:
-            with conn.cursor() as cur:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT task_id, task_type, task_desc, model, status,
                            error_type, error_msg, retries, cost_cents,
@@ -2586,7 +2586,7 @@ async def get_task(task_id: str, x_api_key: Optional[str] = Header(None)):
     verify_key(x_api_key)
     try:
         with get_db() as conn:
-            with conn.cursor() as cur:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
                 cur.execute("""
                     SELECT id, task_id, task_type, task_desc, model,
                            duration_s, cost_cents, success, notes, agent_name,
