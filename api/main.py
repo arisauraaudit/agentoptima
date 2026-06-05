@@ -1,19 +1,31 @@
-# AgentOptima API v1.1.1 — cost_per_success metric + /efficiency endpoint + enhanced routing + bug fixes
-from fastapi import FastAPI, HTTPException, Header
+# AgentOptima API v1.1.2 — structured logging + global exception handler + request tracking
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
-import os, hashlib, secrets, re, psycopg2, psycopg2.extras, requests as _requests
+import os, hashlib, secrets, re, json, psycopg2, psycopg2.extras, requests as _requests
+import logging, traceback, time, uuid
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
+
+# ── Structured Logging ─────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%SZ",
+)
+logger = logging.getLogger("agentoptima")
+# Suppress noisy uvicorn access logs in favour of our middleware
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 # ── Database ───────────────────────────────────────────────────────────────────
 _clean_env  = {k.strip(): v for k, v in os.environ.items()}
 _raw_url    = (_clean_env.get("DATABASE_URL") or _clean_env.get("POSTGRES_URL") or
                _clean_env.get("POSTGRESQL_URL") or _clean_env.get("DATABASE_PRIVATE_URL") or "")
 DATABASE_URL = _raw_url.replace("postgres://", "postgresql://", 1) if _raw_url else None
-print(f"🔍 DB URL detected: {'YES (' + _raw_url[:20] + '...)' if _raw_url else 'NO'}")
+logger.info(f"DB URL detected: {'YES (' + _raw_url[:20] + '...)' if _raw_url else 'NO'}")
 
 def get_db():
     if not DATABASE_URL:
@@ -184,9 +196,9 @@ def init_db():
                 cur.execute("ALTER TABLE model_benchmarks ADD COLUMN IF NOT EXISTS value_score REAL")
                 cur.execute("ALTER TABLE model_benchmarks ADD COLUMN IF NOT EXISTS benchmark_name TEXT")
             conn.commit()
-        print("✅ PostgreSQL ready (v1.0.5 + orchestrator)")
+        logger.info("PostgreSQL ready (v1.0.5 + orchestrator)")
     except Exception as e:
-        print(f"⚠️  DB init warning: {e}")
+        logger.warning(f"DB init warning: {e}")
 
 # ── Auth helper ────────────────────────────────────────────────────────────────
 def verify_key(x_api_key: Optional[str]) -> str:
@@ -209,13 +221,39 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    print("🚀 AgentOptima API v1.1.1 starting...")
-    print(f"   Port: {os.environ.get('PORT', 8000)}")
+    logger.info("AgentOptima API v1.1.2 starting...")
+    logger.info(f"Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.1.2", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+
+# ── Request Logging Middleware ─────────────────────────────────────────────────
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        req_id = uuid.uuid4().hex[:8]
+        start  = time.monotonic()
+        method = request.method
+        path   = request.url.path
+        try:
+            response = await call_next(request)
+            duration_ms = round((time.monotonic() - start) * 1000)
+            level = logging.WARNING if response.status_code >= 500 else logging.INFO
+            logger.log(level, f"[{req_id}] {method} {path} → {response.status_code} ({duration_ms}ms)")
+            return response
+        except Exception as exc:
+            duration_ms = round((time.monotonic() - start) * 1000)
+            logger.error(
+                f"[{req_id}] {method} {path} → UNHANDLED EXCEPTION ({duration_ms}ms)\n"
+                + traceback.format_exc()
+            )
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error", "request_id": req_id},
+            )
+
+app.add_middleware(RequestLoggingMiddleware)
 
 # ── Models ─────────────────────────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
@@ -278,9 +316,9 @@ async def register_agent(request: RegisterRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Register error: {e}")
+        logger.error(f"Register error: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Registration failed — please try again")
-    print(f"🎉 New agent registered: {request.agent_name}")
+    logger.info(f"New agent registered: {request.agent_name}")
     return {
         "api_key":    api_key,
         "agent_name": request.agent_name,
@@ -1087,7 +1125,7 @@ async def track_task(request: TrackRequest,
         conn.commit()
     sub_marker = " [subtask]" if request.is_subtask else ""
     subtype_marker = f" ({request.task_subtype})" if request.task_subtype else ""
-    print(f"💾 [{agent_name}]{sub_marker}{subtype_marker} {request.task_id} ({request.task_type}) [{request.model}]")
+    logger.info(f"[{agent_name}]{sub_marker}{subtype_marker} {request.task_id} ({request.task_type}) [{request.model}]")
     return {"status": "success", "message": f"Task {request.task_id} logged",
             "task_id": request.task_id, "agent": agent_name}
 
@@ -1107,7 +1145,7 @@ async def purge_tasks_by_notes(notes_contains: str,
             cur.execute("DELETE FROM tasks WHERE notes ILIKE %s",
                         (f"%{notes_contains}%",))
         conn.commit()
-    print(f"🗑️  Purged {count} tasks matching notes~'{notes_contains}'")
+    logger.info(f"purge: Purged {count} tasks matching notes~'{notes_contains}'")
     return {"deleted": count, "pattern": notes_contains}
 
 
@@ -1128,7 +1166,7 @@ async def patch_quality_score(task_id: str, quality_score: float,
         conn.commit()
     if updated == 0:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    print(f"⭐ quality_score={quality_score} patched for task_id={task_id}")
+    logger.info(f"quality_score={quality_score} patched for task_id={task_id}")
     return {"status": "success", "task_id": task_id, "quality_score": quality_score}
 
 
@@ -1224,9 +1262,9 @@ async def risk_check(request: RiskCheckRequest,
                 )
             conn.commit()
     except Exception as e:
-        print(f"⚠️ risk_check DB log failed: {e}")
+        logger.warning(f"risk_check DB log failed: {e}")
 
-    print(f"🛡️ risk-check [{risk_level}] score={max_score} flags={fired_flags} task={task_id}")
+    logger.info(f"risk-check: risk-check [{risk_level}] score={max_score} flags={fired_flags} task={task_id}")
     return {
         "task_id":          task_id,
         "risk_level":       risk_level,
@@ -1273,7 +1311,7 @@ async def submit_feedback(request: FeedbackRequest,
                 )
             conn.commit()
     except Exception as e:
-        print(f"⚠️ feedback DB error: {e}")
+        logger.warning(f"feedback DB error: {e}")
 
     orig_info = _model_info(request.original_model)
     orig_cost = orig_info["cost"]
@@ -1342,7 +1380,7 @@ async def submit_feedback(request: FeedbackRequest,
         f"Here are {len(top3)} better option(s) to retry:"
     )
 
-    print(f"📣 feedback logged: task={request.task_id} model={request.original_model} issue={request.issue}")
+    logger.info(f"feedback logged: task={request.task_id} model={request.original_model} issue={request.issue}")
     return {
         "status":         "logged",
         "task_id":        request.task_id,
@@ -1444,7 +1482,7 @@ async def panic(request: PanicRequest,
                 railway_result = f"❌ Railway redeploy failed: {e}"
         result_log.append(railway_result)
 
-    print(f"🚨 PANIC L{request.level} by={request.triggered_by}: {' | '.join(result_log)}")
+    logger.warning(f"PANIC: PANIC L{request.level} by={request.triggered_by}: {' | '.join(result_log)}")
     return {
         "status":          "panic_executed",
         "level":           request.level,
@@ -1806,7 +1844,7 @@ async def recalibrate_orchestrator(
                 """)
                 bench_candidates = cur.fetchall()
     except Exception as e:
-        print(f"⚠️ benchmark_results query failed: {e}")
+        logger.warning(f"benchmark_results query failed: {e}")
 
     # Use benchmark data if we have results with total_score >= 0.85 threshold
     eligible_bench = [r for r in bench_candidates if r["total_score"] and float(r["total_score"]) >= 0.85 * 5]
@@ -1911,9 +1949,9 @@ async def recalibrate_orchestrator(
                 ))
             conn.commit()
     except Exception as e:
-        print(f"⚠️ orchestrator_state write failed: {e}")
+        logger.warning(f"orchestrator_state write failed: {e}")
 
-    print(f"🧠 orchestrator recalibrated: {result['recommended_model']} (reason={result.get('reason')})")
+    logger.info(f"orchestrator recalibrated: {result['recommended_model']} (reason={result.get('reason')})")
     return result
 
 
@@ -1964,7 +2002,7 @@ async def get_orchestrator_current():
             "age_hours": round(age_hours, 1) if age_hours else None,
         }
     except Exception as e:
-        print(f"❌ get_orchestrator_current failed: {e}")
+        logger.error(f"get_orchestrator_current failed: {e}")
         return {
             "status": "error",
             "recommended_model": "anthropic/claude-sonnet-4-6",
@@ -2000,7 +2038,7 @@ async def registry_with_benchmarks():
                 bench_rows = {r["model"]: dict(r) for r in cur.fetchall()}
 
     except Exception as e:
-        print(f"⚠️ benchmark query failed: {e}")
+        logger.warning(f"benchmark query failed: {e}")
         bench_rows = {}
 
     # Combine registry + benchmarks
@@ -2034,8 +2072,6 @@ async def registry_with_benchmarks():
 # ══════════════════════════════════════════════════════════════════════════════
 # ORCHESTRABENCH ENDPOINTS (v1.1.0)
 # ══════════════════════════════════════════════════════════════════════════════
-
-import json
 
 class BenchmarkSubmitRequest(BaseModel):
     benchmark: str
@@ -2113,7 +2149,7 @@ async def benchmark_submit(
                 ))
             conn.commit()
     except Exception as e:
-        print(f"❌ benchmark_submit DB error: {e}")
+        logger.error(f"benchmark_submit DB error: {e}")
         raise HTTPException(status_code=500, detail=f"DB error: {e}")
 
     # Compute rank among latest results for this benchmark
@@ -2145,7 +2181,7 @@ async def benchmark_submit(
         delta = round(request.total_score - prev_total, 4)
         vs_previous = f"+{delta:.2f} improvement" if delta >= 0 else f"{delta:.2f} regression"
 
-    print(f"🎼 benchmark_submit: {request.model.split('/')[-1]} score={request.total_score:.2f} rank=#{rank}")
+    logger.info(f"benchmark_submit: {request.model.split('/')[-1]} score={request.total_score:.2f} rank=#{rank}")
     return {
         "stored": True,
         "model": request.model,
@@ -2277,7 +2313,7 @@ async def log_escalation_event(
         }
     
     except Exception as e:
-        print(f"❌ escalation event logging failed: {e}")
+        logger.error(f"escalation event logging failed: {e}")
         return {
             "stored": False,
             "error": str(e),
@@ -2351,7 +2387,7 @@ async def get_escalation_insights(x_api_key: Optional[str] = Header(None)):
         }
     
     except Exception as e:
-        print(f"❌ escalation insights query failed: {e}")
+        logger.error(f"escalation insights query failed: {e}")
         return {
             "error": str(e),
             "per_model_escalation_rate": [],
