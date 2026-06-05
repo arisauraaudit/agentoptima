@@ -359,7 +359,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.4"}
+    return {"status": "healthy", "version": "1.1.5"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -383,7 +383,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.4", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.5", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -1211,8 +1211,10 @@ _MODEL_REGISTRY = {
     # Ultra-cheap
     "openai/gpt-4o-mini":           {"cost": 0.034, "tier": "ultra_cheap", "speed": "fast",   "strength": "simple tasks, drafts"},
     "deepseek/deepseek-v4-flash":   {"cost": 0.033, "tier": "ultra_cheap", "speed": "medium", "strength": "general, cost-sensitive"},
-    # Cheap
-    "google/gemini-2.0-flash-001":  {"cost": 0.145, "tier": "cheap",       "speed": "fast",   "strength": "multimodal, fast analysis"},
+    # Free tier (benchmark + routing candidates)
+    "openai/gpt-oss-20b:free":      {"cost": 0.000, "tier": "free",        "speed": "medium", "strength": "OSS 20B, free tier, general tasks"},
+    "openai/gpt-oss-120b:free":     {"cost": 0.000, "tier": "free",        "speed": "slow",   "strength": "OSS 120B, free tier, higher quality"},
+    "google/gemma-4-31b-it:free":   {"cost": 0.000, "tier": "free",        "speed": "medium", "strength": "Gemma 4 31B, free tier, instruction-tuned"},
     # Mid
     "anthropic/claude-3-haiku":     {"cost": 0.191, "tier": "mid",         "speed": "fast",   "strength": "balanced quality/cost"},
     "anthropic/claude-haiku-4.5":   {"cost": 0.22,  "tier": "mid",         "speed": "fast",   "strength": "latest haiku, improved reasoning"},
@@ -1222,6 +1224,8 @@ _MODEL_REGISTRY = {
     "anthropic/claude-sonnet-4-6":  {"cost": 0.689, "tier": "quality",     "speed": "medium", "strength": "strategy, complex tasks, coding"},
     # Security oracle (rare, expensive — gatekeeper only)
     "anthropic/claude-opus-4":      {"cost": 4.50,  "tier": "oracle",      "speed": "slow",   "strength": "security audit, high-risk verification, critical decisions"},
+    # RETIRED
+    # "google/gemini-2.0-flash-001" — no endpoints on OpenRouter as of 2026-06-05
 }
 
 def _model_info(model_id: str) -> dict:
@@ -1655,7 +1659,7 @@ async def get_contracts(x_api_key: Optional[str] = Header(None)):
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.4",
+        "version": "1.1.5",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
