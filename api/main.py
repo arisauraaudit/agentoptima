@@ -359,7 +359,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.5"}
+    return {"status": "healthy", "version": "1.1.6"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -383,7 +383,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.5", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.6", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -1212,7 +1212,7 @@ _MODEL_REGISTRY = {
     "openai/gpt-4o-mini":           {"cost": 0.034, "tier": "ultra_cheap", "speed": "fast",   "strength": "simple tasks, drafts"},
     "deepseek/deepseek-v4-flash":   {"cost": 0.033, "tier": "ultra_cheap", "speed": "medium", "strength": "general, cost-sensitive"},
     # Free tier (benchmark + routing candidates)
-    "openai/gpt-oss-20b:free":      {"cost": 0.000, "tier": "free",        "speed": "medium", "strength": "OSS 20B, free tier, general tasks"},
+    # "openai/gpt-oss-20b:free" — retired 2026-06-05 (429 rate limits ~30%, unreliable)
     "openai/gpt-oss-120b:free":     {"cost": 0.000, "tier": "free",        "speed": "slow",   "strength": "OSS 120B, free tier, higher quality"},
     "google/gemma-4-31b-it:free":   {"cost": 0.000, "tier": "free",        "speed": "medium", "strength": "Gemma 4 31B, free tier, instruction-tuned"},
     # Mid
@@ -1659,7 +1659,7 @@ async def get_contracts(x_api_key: Optional[str] = Header(None)):
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.5",
+        "version": "1.1.6",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
