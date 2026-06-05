@@ -1,4 +1,4 @@
-# AgentOptima API v1.1.3 — structured logging + global exception handler + request tracking
+# AgentOptima API v1.1.4 — worker contracts registry + Phase D support
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -205,7 +205,7 @@ def init_db():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_goal_id ON tasks(goal_id)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks(task_id)")
             conn.commit()
-        logger.info("PostgreSQL ready (v1.1.3 + task-state)")
+        logger.info("PostgreSQL ready (v1.1.4 + contracts)")
     except Exception as e:
         logger.warning(f"DB init warning: {e}")
 
@@ -230,11 +230,11 @@ def verify_key(x_api_key: Optional[str]) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    logger.info("AgentOptima API v1.1.3 starting...")
+    logger.info("AgentOptima API v1.1.4 starting...")
     logger.info(f"Port: {os.environ.get('PORT', 8000)}")
     yield
 
-app = FastAPI(title="AgentOptima API", version="1.1.3", lifespan=lifespan)
+app = FastAPI(title="AgentOptima API", version="1.1.4", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -359,7 +359,7 @@ async def register_agent(request: RegisterRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "version": "1.1.3"}
+    return {"status": "healthy", "version": "1.1.4"}
 
 @app.get("/api/v1/status")
 async def get_status():
@@ -383,7 +383,7 @@ async def get_status():
             arena_count = cur.fetchone()[0]
     live_count = total - rb_count - arena_count
     sources = {"live": live_count, "arena55k": arena_count, "routerbench": rb_count}
-    return {"status": "running", "version": "1.1.3", "tasks_logged": total,
+    return {"status": "running", "version": "1.1.4", "tasks_logged": total,
             "tasks_success": success, "models_tracked": models,
             "last_task_at": latest[0].isoformat() if latest else None,
             "storage": "postgresql (Railway managed)",
@@ -1530,12 +1530,132 @@ async def panic(request: PanicRequest,
     }
 
 
+# ── WORKER CONTRACTS ──────────────────────────────────────────────────────────
+# Embedded here (not read from file) because the API runs on Railway, not local.
+WORKER_CONTRACTS = {
+    "coding": {
+        "description": "Code writing, debugging, refactoring, or script creation",
+        "input_fields": ["task", "language", "context", "constraints"],
+        "output_format": {
+            "success": "bool",
+            "code": "string — the complete code solution",
+            "explanation": "string — brief explanation of what was done (1-3 sentences)",
+            "files_modified": "list[string] — file paths touched (empty if none)",
+            "error": "string — error message if success=false, else null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format. No markdown fences. No preamble.",
+        "constraints": ["never execute destructive commands", "never expose secrets", "always return valid JSON"]
+    },
+    "writing": {
+        "description": "Content creation, copywriting, documentation, emails",
+        "input_fields": ["task", "tone", "length", "audience", "context"],
+        "output_format": {
+            "success": "bool",
+            "content": "string — the written output",
+            "word_count": "int",
+            "error": "string or null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format.",
+        "constraints": ["match requested tone", "respect length constraints"]
+    },
+    "research": {
+        "description": "Information gathering, analysis, summarization, fact-checking",
+        "input_fields": ["task", "depth", "context"],
+        "output_format": {
+            "success": "bool",
+            "summary": "string — key findings (3-5 bullet points)",
+            "details": "string — full research output",
+            "sources": "list[string] — URLs or references if any",
+            "confidence": "float 0.0-1.0 — confidence in findings",
+            "error": "string or null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format.",
+        "constraints": ["cite sources when available", "flag uncertainty explicitly"]
+    },
+    "analysis": {
+        "description": "Data analysis, comparison, evaluation, risk assessment",
+        "input_fields": ["task", "data", "context", "output_type"],
+        "output_format": {
+            "success": "bool",
+            "conclusion": "string — 1-2 sentence bottom line",
+            "breakdown": "string — detailed analysis",
+            "recommendations": "list[string]",
+            "error": "string or null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format.",
+        "constraints": ["separate facts from inference", "quantify where possible"]
+    },
+    "math": {
+        "description": "Mathematical calculations, proofs, statistical analysis",
+        "input_fields": ["task", "context", "precision"],
+        "output_format": {
+            "success": "bool",
+            "answer": "string — the final answer clearly stated",
+            "working": "string — step-by-step working",
+            "confidence": "float 0.0-1.0",
+            "error": "string or null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format. Show all working.",
+        "constraints": ["show all steps", "flag assumptions", "verify answer"]
+    },
+    "data": {
+        "description": "Data processing, transformation, formatting, ETL tasks",
+        "input_fields": ["task", "input_data", "output_format_requested", "context"],
+        "output_format": {
+            "success": "bool",
+            "result": "string — processed output or transformed data",
+            "row_count": "int or null",
+            "error": "string or null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format.",
+        "constraints": ["preserve data integrity", "handle nulls explicitly"]
+    },
+    "build": {
+        "description": "Build tasks, deployment, infrastructure, configuration",
+        "input_fields": ["task", "environment", "context", "constraints"],
+        "output_format": {
+            "success": "bool",
+            "steps_taken": "list[string] — ordered list of actions performed",
+            "output": "string — final state or result",
+            "warnings": "list[string]",
+            "error": "string or null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format.",
+        "constraints": ["never run destructive commands without explicit instruction", "log every step"]
+    },
+    "general": {
+        "description": "General purpose tasks that don't fit other categories",
+        "input_fields": ["task", "context"],
+        "output_format": {
+            "success": "bool",
+            "result": "string — the task output",
+            "error": "string or null"
+        },
+        "output_instruction": "Return ONLY a JSON object matching the output_format.",
+        "constraints": []
+    }
+}
+
+
+@app.get("/api/v1/contracts")
+async def get_contracts(x_api_key: Optional[str] = Header(None)):
+    """Return the worker contract registry. Defines typed I/O schemas per task type."""
+    verify_key(x_api_key)
+    return {
+        "version": "1.0",
+        "contracts": WORKER_CONTRACTS,
+        "count": len(WORKER_CONTRACTS),
+        "task_types": list(WORKER_CONTRACTS.keys()),
+        "description": "Worker contracts define typed input/output schemas per task type for reliable delegation.",
+    }
+
+
 # ── MODEL REGISTRY endpoint ────────────────────────────────────────────────────
 @app.get("/api/v1/registry")
 async def model_registry():
     """Full model registry with tiers, costs, and strengths."""
     return {
-        "version": "1.1.3",
+        "version": "1.1.4",
         "total_models": len(_MODEL_REGISTRY),
         "models": [
             {"model": k, **v} for k, v in _MODEL_REGISTRY.items()
