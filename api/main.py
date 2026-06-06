@@ -1,4 +1,11 @@
-# AgentOptima API v1.1.10 — filter rankings to active registry models only, fix models_tracked KPI
+# AgentOptima API v1.1.10
+
+# ── API Documentation ─────────────────────────────────────────────────────────—
+# NOTE: Some task types are recommended as always requiring high-quality models:
+# - strategy: complex decision-making, roadmaps, business logic
+# - security: auth, vulnerability analysis, sensitive operations
+# - orchestration: multi-step coordination, task decomposition
+# For these types, even if a cheaper model has high success rate, consider always routing to your highest-quality model. — filter rankings to active registry models only, fix models_tracked KPI
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -712,6 +719,18 @@ def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
 async def get_recommendation(task_type: str = "general", task_subtype: str = None,
                              min_tasks: int = 10, text: str = None,
                              quality_tolerance: float = None):
+    """
+    GET /api/v1/recommend?task_type=coding
+
+    Returns the best model for the given task type based on real performance data.
+
+    NOTE: Some task types are recommended as always requiring high-quality models:
+    - strategy: complex decision-making, roadmaps, business logic
+    - security: auth, vulnerability analysis, sensitive operations
+    - orchestration: multi-step coordination, task decomposition
+    For these types, even if a cheaper model has a high success rate,
+    consider always routing to your highest-quality model (e.g. claude-sonnet).
+    """
     MODEL_POOL = ACTIVE_POOL
     # Use per-task-type tolerance unless caller explicitly overrides
     effective_tolerance = get_task_tolerance(task_type, quality_tolerance)
