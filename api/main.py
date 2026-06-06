@@ -2794,6 +2794,7 @@ async def classify_post_endpoint(request: ClassifyRequest,
     agent_name = verify_key(x_api_key)
     start_t = time.monotonic()
     try:
+        import sys
         sys.path.insert(0, '/app')
         from integration.task_classifier import classify_task as _classify
 
