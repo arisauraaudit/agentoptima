@@ -1044,13 +1044,13 @@ async function loadTaskState() {
         const successRate = (totalTasks !== '--' && totalTasks > 0)
             ? (successTasks / totalTasks * 100).toFixed(1) + '%'
             : '--';
-        const liveTasks = statusData.tasks_last_24h ?? statusData.active_tasks ?? '--';
+        const liveTasks = statusData.tasks_last_24h ?? statusData.active_tasks ?? (statusData.data_sources && statusData.data_sources.live) ?? '--';
         const failedCount = (failedData.tasks || []).length;
 
         grid.innerHTML =
             statCard('Total Tasks', typeof totalTasks === 'number' ? totalTasks.toLocaleString() : totalTasks, '#3b82f6') +
             statCard('Success Rate', successRate, '#10b981') +
-            statCard('Live (24h)', typeof liveTasks === 'number' ? liveTasks.toLocaleString() : liveTasks, '#8b5cf6') +
+            statCard('Live Tasks', typeof liveTasks === 'number' ? liveTasks.toLocaleString() : liveTasks, '#8b5cf6') +
             statCard('Failed (needs retry)', failedCount, failedCount > 0 ? '#ef4444' : '#10b981');
 
         const tasks = (failedData.tasks || []).slice(0, 5);
