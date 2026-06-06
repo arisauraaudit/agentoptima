@@ -1434,7 +1434,7 @@ class PanicRequest(BaseModel):
     triggered_by: Optional[str] = "unknown"
     reason:      Optional[str] = None
 
-@app.post("/api/v1/panic")
+@app.post("/api/internal/panic")
 async def panic(request: PanicRequest,
                 x_panic_key: Optional[str] = Header(default=None, alias="X-Panic-Key"),
                 x_api_key: Optional[str]   = Header(default=None)):
@@ -1526,8 +1526,8 @@ async def panic(request: PanicRequest,
         "railway_result":  railway_result,
         "log":             result_log,
         "recovery_guide": {
-            "level_1": "POST /api/v1/panic  {level:1}  — app health reset (always available)",
-            "level_2": "POST /api/v1/panic  {level:2}  — Railway redeploy (needs RAILWAY_TOKEN env var)",
+            "level_1": "POST /api/internal/panic  {level:1}  — app health reset (always available)",
+            "level_2": "POST /api/internal/panic  {level:2}  — Railway redeploy (needs RAILWAY_TOKEN env var)",
             "level_3": "On Aris-HQ: bash /root/.openclaw/workspace/AgentOptima/scripts/panic_push.sh",
         }
     }
@@ -2110,7 +2110,7 @@ async def recalibrate_orchestrator(
     return result
 
 
-@app.get("/api/v1/orchestrator/current")
+@app.get("/api/internal/orchestrator/current")
 async def get_orchestrator_current():
     """
     GET current orchestrator recommendation.
@@ -2730,7 +2730,7 @@ async def get_task(task_id: str, x_api_key: Optional[str] = Header(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/goals/{goal_id}")
+@app.get("/api/internal/goals/{goal_id}")
 async def get_goal(goal_id: str, x_api_key: Optional[str] = Header(None)):
     """Fetch all tasks under a goal_id with summary stats."""
     verify_key(x_api_key)

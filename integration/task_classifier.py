@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SYNC NOTE: This classifier maps to AgentOptima subtypes (coding/python, research/market, etc.)
+# The Aris conversation router (/root/.aris/task_classifier.py) handles strategy/security/orchestration
+# as SONNET_ALWAYS types — these are intentionally not in this product classifier.
+# Last synced: 2026-06-06
 """
 task_classifier.py — AgentOptima v0.8.0 Task Classifier
 
