@@ -505,6 +505,242 @@
         @media (max-width: 640px) {
             #cm-feature-grid { grid-template-columns: 1fr !important; }
         }
+
+        /* ── Onboarding Section ── */
+        .onboarding {
+            margin: 3rem 0;
+            padding: 2.5rem;
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        @media (max-width: 640px) {
+            .onboarding { padding: 1.5rem; margin: 1.5rem 0; border-radius: 14px; }
+        }
+        .onboarding::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6);
+        }
+        .onboarding-title {
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        @media (max-width: 640px) {
+            .onboarding-title { font-size: 1.5rem; }
+        }
+        .onboarding-sub {
+            color: #94a3b8;
+            font-size: 1rem;
+            margin-bottom: 2rem;
+        }
+        @media (max-width: 640px) {
+            .onboarding-sub { font-size: 0.9rem; margin-bottom: 1.5rem; }
+        }
+        .onboarding-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+        @media (max-width: 768px) {
+            .onboarding-grid { grid-template-columns: 1fr; gap: 1rem; }
+        }
+        .onboarding-step {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 16px;
+            padding: 1.75rem;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        @media (max-width: 640px) {
+            .onboarding-step { padding: 1.25rem; border-radius: 12px; }
+        }
+        .onboarding-step:hover {
+            border-color: rgba(16, 185, 129, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.1);
+        }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 50%;
+            font-weight: 800;
+            font-size: 0.9rem;
+            color: #10b981;
+            margin-bottom: 1rem;
+        }
+        .step-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-bottom: 0.6rem;
+        }
+        @media (max-width: 640px) {
+            .step-title { font-size: 1.05rem; }
+        }
+        .step-text {
+            color: #94a3b8;
+            font-size: 0.9rem;
+            line-height: 1.65;
+            margin-bottom: 1rem;
+        }
+        @media (max-width: 640px) {
+            .step-text { font-size: 0.85rem; }
+        }
+        .step-note {
+            color: #64748b;
+            font-size: 0.82rem;
+            font-style: italic;
+        }
+        .openrouter-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: #0f172a;
+            font-weight: 700;
+            font-size: 0.9rem;
+            padding: 0.7rem 1.5rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            margin-bottom: 0.5rem;
+        }
+        .openrouter-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+            background: linear-gradient(135deg, #34d399, #10b981);
+        }
+        .code-block {
+            background: #0f172a;
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin: 0.75rem 0;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 0.82rem;
+            line-height: 1.55;
+            color: #e2e8f0;
+        }
+        @media (max-width: 640px) {
+            .code-block { font-size: 0.72rem; padding: 1rem; }
+        }
+        .code-block .keyword { color: #c084fc; }
+        .code-block .string { color: #34d399; }
+        .code-block .comment { color: #64748b; font-style: italic; }
+        .code-block .function { color: #60a5fa; }
+        .code-block .number { color: #fbbf24; }
+        .cost-highlight {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 10px;
+            padding: 0.75rem 1.25rem;
+            color: #10b981;
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+        @media (max-width: 640px) {
+            .cost-highlight { font-size: 0.95rem; padding: 0.6rem 1rem; }
+        }
+        .api-key-demo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: #34d399;
+            margin: 0.5rem 0;
+        }
+        @media (max-width: 640px) {
+            .api-key-demo { font-size: 0.78rem; padding: 0.4rem 0.75rem; }
+        }
+        .api-key-demo .label {
+            color: #64748b;
+            font-weight: 600;
+            font-family: 'Inter', system-ui, sans-serif;
+        }
+
+        /* ── Quick API Reference ── */
+        .api-ref {
+            margin: 3rem 0;
+        }
+        .api-ref-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 768px) {
+            .api-ref-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+        }
+        .api-ref-card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+        }
+        .api-ref-card:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            transform: translateY(-2px);
+        }
+        .api-ref-card .method {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.15);
+            color: #93c5fd;
+            font-weight: 700;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        .api-ref-card .endpoint {
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            font-weight: 600;
+            vertical-align: middle;
+        }
+        @media (max-width: 640px) {
+            .api-ref-card .endpoint { font-size: 0.78rem; }
+        }
+        .api-ref-card .desc {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+            line-height: 1.5;
+        }
+        @media (max-width: 640px) {
+            .api-ref-card .desc { font-size: 0.8rem; }
+        }
     </style>
 </head>
 <body>
@@ -550,6 +786,129 @@
             <span style="white-space:nowrap">⚡ <span id="stat-total-routed">9</span> messages routed</span>
             <span style="white-space:nowrap">🧠 Sonnet only for strategy & security</span>
         </div>
+
+
+        <!-- ── Get Started in 2 Minutes ── -->
+        <div class="onboarding">
+            <h2 class="onboarding-title">🚀 Get Started in 2 Minutes</h2>
+            <p class="onboarding-sub">Plug any AI agent into AgentOptima and start routing smarter — in four simple steps.</p>
+
+            <div class="onboarding-grid">
+
+                <!-- Step 1 -->
+                <div class="onboarding-step">
+                    <div class="step-number">1</div>
+                    <div class="step-title">Get your API provider</div>
+                    <div class="step-text">
+                        AgentOptima works with any AI provider. For maximum model selection (20+ models),
+                        we recommend OpenRouter.
+                    </div>
+                    <a href="https://openrouter.ai/?via=agentoptima" target="_blank" rel="noopener"
+                       class="openrouter-btn">
+                        Get OpenRouter Account →
+                    </a>
+                    <div class="step-note">Free to start. Pay only for what you use.</div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="onboarding-step">
+                    <div class="step-number">2</div>
+                    <div class="step-title">Get your AgentOptima API key</div>
+                    <div class="step-text">
+                        Sign up for AgentOptima to get your API key. Every request authenticates
+                        with your key in the header.
+                    </div>
+                    <div class="api-key-demo">
+                        <span class="label">Header:</span>
+                        <span>X-API-Key: ao-xxxxx</span>
+                    </div>
+                    <div class="step-note">Currently in beta — contact us for access</div>
+                </div>
+
+                <!-- Step 3 (full width on desktop) -->
+                <div class="onboarding-step" style="grid-column: span 2;">
+                    <div class="step-number">3</div>
+                    <div class="step-title">Plug into your agent</div>
+                    <div class="step-text">
+                        Add AgentOptima to your agent's workflow. Classify tasks and get model recommendations
+                        with two simple API calls.
+                    </div>
+                    <div class="code-block">
+<span class="keyword">import</span> requests
+
+<span class="comment"># Classify your task</span>
+response = requests.<span class="function">post</span>(
+    <span class="string">"https://agentoptima.ai/api/v1/classify"</span>,
+    headers={<span class="string">"X-API-Key"</span>: <span class="string">"your-key"</span>},
+    json={<span class="string">"message"</span>: <span class="string">"your task description"</span>}
+)
+result = response.<span class="function">json</span>()
+<span class="comment"># → {"task_type": "coding", "recommended_cascade": ["gpt-4o-mini", "claude-haiku", "o3-mini"]}</span>
+
+<span class="comment"># Get model recommendation</span>
+rec = requests.<span class="function">get</span>(
+    <span class="string">"https://agentoptima.ai/api/v1/recommend?task_type=coding"</span>,
+    headers={<span class="string">"X-API-Key"</span>: <span class="string">"your-key"</span>}
+).<span class="function">json</span>()
+<span class="comment"># → Use rec["recommended_model"] for your task</span>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="onboarding-step">
+                    <div class="step-number">4</div>
+                    <div class="step-title">Watch costs drop</div>
+                    <div class="step-text">
+                        AgentOptima routes each task to the most cost-effective model.
+                        Most teams see <strong style="color:#10b981">60-80% cost reduction</strong> within the first week.
+                    </div>
+                    <div class="cost-highlight">
+                        💰 60-80% cost reduction
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        <!-- ── /Get Started in 2 Minutes ── -->
+
+        <!-- ── Quick API Reference ── -->
+        <div class="section api-ref">
+            <h2 class="section-title">⚡ Quick API Reference</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                Four endpoints to integrate AgentOptima into any agent workflow.
+            </p>
+            <div class="api-ref-grid">
+                <div class="api-ref-card">
+                    <div>
+                        <span class="method">POST</span>
+                        <span class="endpoint">/api/v1/classify</span>
+                    </div>
+                    <div class="desc">Classify a task and get model cascade</div>
+                </div>
+                <div class="api-ref-card">
+                    <div>
+                        <span class="method">GET</span>
+                        <span class="endpoint">/api/v1/recommend</span>
+                    </div>
+                    <div class="desc">Get best model for task type</div>
+                </div>
+                <div class="api-ref-card">
+                    <div>
+                        <span class="method">GET</span>
+                        <span class="endpoint">/api/v1/cascade</span>
+                    </div>
+                    <div class="desc">Get full retry waterfall</div>
+                </div>
+                <div class="api-ref-card">
+                    <div>
+                        <span class="method">POST</span>
+                        <span class="endpoint">/api/v1/track</span>
+                    </div>
+                    <div class="desc">Log task outcomes for learning</div>
+                </div>
+            </div>
+        </div>
+        <!-- ── /Quick API Reference ── -->
 
 
         <div class="section">
