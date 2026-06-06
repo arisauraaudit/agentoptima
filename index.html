@@ -790,7 +790,14 @@
 
         <!-- ── Get Started in 2 Minutes ── -->
         <div class="onboarding">
-            <h2 class="onboarding-title">🚀 Get Started in 2 Minutes</h2>
+            <div class="onboarding-header" onclick="toggleOnboarding()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+                <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                    <h2 class="onboarding-title" style="margin:0">🚀 Get Started in 2 Minutes</h2>
+                    <span style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b;font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:50px;letter-spacing:0.05em;text-transform:uppercase;">Beta · Invite Only</span>
+                </div>
+                <span id="onboarding-chevron" style="color:#64748b;font-size:1.2rem;transition:transform 0.2s;flex-shrink:0;">▼</span>
+            </div>
+            <div id="onboarding-content" style="display:none;margin-top:1.5rem;">
             <p class="onboarding-sub">Plug any AI agent into AgentOptima and start routing smarter — in four simple steps.</p>
 
             <div class="onboarding-grid">
@@ -868,6 +875,7 @@ rec = requests.<span class="function">get</span>(
                 </div>
 
             </div>
+            </div><!-- /onboarding-content -->
         </div>
         <!-- ── /Get Started in 2 Minutes ── -->
 
@@ -1563,6 +1571,14 @@ loadContracts();
                     </div>
                 </div>
             `).join('');
+        }
+
+        function toggleOnboarding() {
+            const content = document.getElementById('onboarding-content');
+            const chevron = document.getElementById('onboarding-chevron');
+            const isHidden = content.style.display === 'none';
+            content.style.display = isHidden ? 'block' : 'none';
+            chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
         }
 
         async function refresh() {
