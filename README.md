@@ -1,70 +1,100 @@
-# AgentOptima - Self-Improving AI Agent Network
+# AgentOptima — AI Routing OS
 
-## Status
+> Plug AgentOptima into any agent and immediately do more with less. Smarter routing, lower costs, zero rewrite.
 
-**API Backend:** ✅ Complete  
-**Dashboard:** ✅ Built  
-**Deployment:** ⏳ Railway deployment needs manual trigger
+## What It Does
 
----
+AgentOptima is a plug-and-play API that turns any AI agent into a cost-optimized, self-improving routing machine.
 
-## Quick Start
+- **Route smarter** — classify tasks and match them to the right model automatically
+- **Spend less** — 60-80% cost reduction by avoiding Sonnet for simple tasks  
+- **Retry intelligently** — 3-model cascade before escalating to expensive models
+- **Learn continuously** — tracks outcomes and improves recommendations over time
 
-### Deploy to Railway
+## Quick Start (2 minutes)
 
-1. Go to https://railway.app/
-2. Create new project from GitHub repo: `https://github.com/arisauraaudit/agentoptima`
-3. Railway will auto-detect Python/FastAPI
-4. Deploy will start automatically
+### 1. Get OpenRouter (recommended)
+For access to 20+ models: [openrouter.ai/?via=agentoptima](https://openrouter.ai/?via=agentoptima)
 
-**Or deploy manually:**
+### 2. Classify your task
+```python
+import requests
 
-```bash
-cd /root/.openclaw/workspace/AgentOptima
-# Ensure .git is present
-git add .
-git commit -m "Deploy AgentOptima API"
-git push origin main
+response = requests.post(
+    "https://agentoptima.ai/api/v1/classify",
+    headers={"X-API-Key": "your-key"},
+    json={"message": "build a REST API for user auth"}
+)
+# → {"task_type": "coding", "recommended_cascade": ["gpt-4o-mini", "claude-haiku-4.5", "o3-mini"]}
 ```
 
-### Environment Variables
+### 3. Get model recommendation
+```python
+rec = requests.get(
+    "https://agentoptima.ai/api/v1/recommend?task_type=coding",
+    headers={"X-API-Key": "your-key"}
+).json()
+model = rec["recommended_model"]  # data-driven, improves over time
+```
 
-Railway needs these (set in Railway dashboard):
-- `PORT` - Default: 8000
+### 4. Log outcomes (makes recommendations smarter)
+```python
+requests.post(
+    "https://agentoptima.ai/api/v1/track",
+    headers={"X-API-Key": "your-key"},
+    json={
+        "task_id": "task-001",
+        "task_type": "coding",
+        "model": "openai/gpt-4o-mini",
+        "success": True,
+        "duration_seconds": 4.2,
+        "cost_cents": 0.02
+    }
+)
+```
 
-### Expected Behavior
+## API Reference
 
-After deployment:
-- API lives at: `https://agentoptima.ai/api`
-- Health check: `GET /health` → `{"status":"healthy"}`
-- Track endpoint: `POST /api/v1/track`
-- Recommendations: `GET /api/v1/recommendations`
+| Endpoint | Method | Auth | Description |
+|----------|--------|------|-------------|
+| `/api/v1/classify` | POST | Required | Classify task → get type + model cascade |
+| `/api/v1/recommend` | GET | Required | Best model for task type (data-driven) |
+| `/api/v1/cascade` | GET | None | Retry waterfall for task type |
+| `/api/v1/registry` | GET | Required | All tracked models with cost/performance |
+| `/api/v1/track` | POST | Required | Log task outcome for learning |
+| `/api/v1/status` | GET | Required | API health + task counts |
 
----
+## Model Registry
 
-## API Endpoints
+AgentOptima tracks 8 models across 4 tiers:
 
-- `GET /` - Root
-- `GET /health` - Health check
-- `GET /api/v1/status` - System status
-- `POST /api/v1/track` - Log agent task
-- `GET /api/v1/recommendations` - Get analytics
+| Tier | Models | Best For |
+|------|--------|----------|
+| Ultra-cheap | gpt-4o-mini, deepseek-v4-flash | Simple tasks, drafts |
+| Free | gpt-oss-120b, gemma-4-31b | Experimentation |
+| Mid | claude-haiku-4.5, o3-mini | Complex tasks, reasoning |
+| Quality | claude-sonnet-4-6 | Strategy, critical decisions |
+| Oracle | claude-opus-4 | High-stakes verification |
 
----
+## The Cascade Pattern
 
-## Architecture
+Instead of always using your most expensive model, AgentOptima gives you a retry waterfall:
+```
+Task fails on gpt-4o-mini → retry with claude-haiku-4.5 → retry with o3-mini → escalate to sonnet
+```
 
-- **Backend:** FastAPI + Python
-- **Frontend:** Next.js 14 (dashboard)
-- **Database:** PostgreSQL (ready for Phase 2)
-- **Deployment:** Railway
+Get the cascade for any task type:
+```bash
+curl https://agentoptima.ai/api/v1/cascade?task_type=coding
+```
 
----
+## Status
+- **Version:** 1.1.10
+- **Tasks tracked:** 400K+
+- **Uptime:** Railway managed PostgreSQL + auto-deploy
+- **Beta:** Contact for API access
 
-## Files
-
-- `api/main.py` - API endpoints
-- `main.py` - Entry point
-- `dashboard/` - Next.js frontend
-- `twitter-bot/` - Twitter automation
-- `data-pipeline/` - Rankings generator
+## Built With
+- FastAPI + PostgreSQL (Railway)
+- OpenRouter for multi-model access
+- 400K+ real task outcomes powering recommendations
