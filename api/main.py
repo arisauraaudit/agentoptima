@@ -2758,3 +2758,118 @@ async def get_goal(goal_id: str, x_api_key: Optional[str] = Header(None)):
     except Exception as e:
         logger.error(f"get_goal error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Cascade / Retry Waterfall ──────────────────────────────────────────────────
+CASCADE_ORDER = {
+    "coding":   ["openai/gpt-4o-mini", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
+    "research": ["deepseek/deepseek-v4-flash", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
+    "writing":  ["deepseek/deepseek-v4-flash", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
+    "data":     ["deepseek/deepseek-v4-flash", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
+    "math":     ["openai/o3-mini", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
+    "analysis": ["openai/gpt-4o-mini", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
+    "build":    ["openai/gpt-4o-mini", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
+    "general":  ["openai/gpt-4o-mini", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
+    "strategy": ["anthropic/claude-sonnet-4-6"],
+    "security": ["anthropic/claude-sonnet-4-6"],
+}
+
+DELEGATABLE_TYPES = {"coding", "writing", "data", "research", "analysis", "build", "math"}
+
+
+class ClassifyRequest(BaseModel):
+    message: str
+    context: Optional[str] = None
+
+
+@app.post("/api/v1/classify")
+async def classify_post_endpoint(request: ClassifyRequest,
+                                 x_api_key: Optional[str] = Header(None)):
+    """
+    POST /api/v1/classify
+
+    Classify a task description and return the recommended retry cascade.
+    Requires X-API-Key header. Logs every classification to the DB.
+    """
+    agent_name = verify_key(x_api_key)
+    start_t = time.monotonic()
+    try:
+        sys.path.insert(0, '/app')
+        from integration.task_classifier import classify_task as _classify
+
+        result = _classify(request.message)
+        task_type = result["category"]
+        subtype   = result["subtype"]
+        confidence = result["confidence"]
+
+        should_delegate = task_type in DELEGATABLE_TYPES
+        cascade = CASCADE_ORDER.get(task_type, CASCADE_ORDER["general"])
+
+        # Derive complexity label from confidence
+        if confidence < 0.5:
+            complexity = "complex"
+        elif confidence < 0.75:
+            complexity = "medium"
+        else:
+            complexity = "simple"
+
+        reason = f"{task_type} task, {complexity} complexity"
+
+        # Log to DB
+        try:
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """INSERT INTO tasks
+                           (task_id, task_type, task_desc, model, duration_s, cost_cents, success, agent_name, logged_at)
+                           VALUES (%s, 'classify', %s, 'none', 0, 0, TRUE, %s, NOW())""",
+                        (uuid.uuid4().hex[:12], request.message[:500], agent_name),
+                    )
+                conn.commit()
+        except Exception as db_err:
+            logger.warning(f"Failed to log classify call: {db_err}")
+
+        return {
+            "task_type":           task_type,
+            "task_subtype":        subtype,
+            "complexity":          complexity,
+            "confidence":          confidence,
+            "should_delegate":     should_delegate,
+            "recommended_cascade": cascade,
+            "reason":              reason,
+        }
+    except Exception as e:
+        logger.error(f"Classify POST error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Classification failed: {str(e)}")
+
+
+@app.get("/api/v1/cascade")
+async def get_cascade(task_type: str = "general"):
+    """
+    GET /api/v1/cascade?task_type=coding
+
+    Return the retry waterfall for a given task type. Public, no auth required.
+    """
+    tt = task_type.strip().lower()
+    if "/" in tt:
+        tt = tt.split("/")[0]
+
+    if tt not in CASCADE_ORDER:
+        note = f"Unknown task_type '{tt}'. Returning general cascade."
+        tt = "general"
+    else:
+        note = None
+
+    cascade    = CASCADE_ORDER[tt]
+    escalation = "anthropic/claude-sonnet-4-6"
+
+    resp = {
+        "task_type":      tt,
+        "cascade":        cascade,
+        "escalation":     escalation,
+        "description":    "Try models in order. On failure, move to next. Only use escalation after all cascade models fail.",
+        "total_attempts": len(cascade) + 1,
+    }
+    if note:
+        resp["note"] = note
+    return resp
