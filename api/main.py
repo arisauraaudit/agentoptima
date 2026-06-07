@@ -453,23 +453,32 @@ def get_task_tolerance(task_type: str, override: float = None) -> float:
 async def get_rankings(include_subtypes: bool = False):
     with get_db() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            # Category-level rankings — with cost_per_success computed in SQL
+            # Category-level rankings — LEFT JOIN ensures ALL models in ACTIVE_POOL appear
+            # with nulls for models that have no tasks logged yet
             cur.execute("""
-                SELECT model, task_type AS category, NULL AS subtype,
-                    COUNT(*) AS tasks_logged,
-                    ROUND(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END)::numeric,4) AS success_rate,
-                    ROUND(AVG(duration_s)::numeric,2) AS avg_duration,
-                    ROUND(AVG(cost_cents)::numeric,4) AS avg_cost_cents,
-                    ROUND(AVG(quality_score)::numeric,2) AS avg_quality,
+                SELECT m.model,
+                    tt.task_type AS category,
+                    NULL AS subtype,
+                    COUNT(t.id) AS tasks_logged,
+                    ROUND(AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END)::numeric, 4) AS success_rate,
+                    ROUND(AVG(t.duration_s)::numeric, 2) AS avg_duration,
+                    ROUND(AVG(t.cost_cents)::numeric, 4) AS avg_cost_cents,
+                    ROUND(AVG(t.quality_score)::numeric, 2) AS avg_quality,
                     ROUND(
-                        (AVG(cost_cents) / NULLIF(AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END), 0))::numeric
+                        (AVG(t.cost_cents) / NULLIF(AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END), 0))::numeric
                     , 4) AS cost_per_success
-                FROM tasks
-                WHERE model = ANY(%s)
-                GROUP BY model, task_type
-                ORDER BY success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
+                FROM unnest(%s::text[]) AS m(model)
+                CROSS JOIN unnest(ARRAY['coding','research','writing','math','general','analysis','build','strategy']) AS tt(task_type)
+                LEFT JOIN tasks t ON t.model = m.model AND t.task_type = tt.task_type
+                GROUP BY m.model, tt.task_type
+                ORDER BY tasks_logged DESC NULLS LAST, success_rate DESC NULLS LAST
             """, (ACTIVE_POOL,))
-            category_rows = [r for r in cur.fetchall() if r["model"] in _MODEL_REGISTRY]
+            category_rows = [dict(r) for r in cur.fetchall()]
+            
+            # Enrich with tier information from _MODEL_REGISTRY
+            tier_map = {m: _model_info(m).get("tier", "unknown") for m in ACTIVE_POOL}
+            for row in category_rows:
+                row["tier"] = tier_map.get(row["model"], "unknown")
 
             subtype_rows = []
             if include_subtypes:
@@ -489,7 +498,10 @@ async def get_rankings(include_subtypes: bool = False):
                     GROUP BY model, task_type, task_subtype
                     ORDER BY task_subtype, success_rate DESC, cost_per_success ASC NULLS LAST, tasks_logged DESC
                 """, (ACTIVE_POOL,))
-                subtype_rows = [r for r in cur.fetchall() if r["model"] in _MODEL_REGISTRY]
+                subtype_rows = [dict(r) for r in cur.fetchall()]
+                # Enrich subtypes with tier info too
+                for row in subtype_rows:
+                    row["tier"] = tier_map.get(row["model"], "unknown")
 
     return {
         "generated_at": datetime.utcnow().isoformat(),
