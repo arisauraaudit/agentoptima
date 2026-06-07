@@ -718,15 +718,23 @@ def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
         # cost_per_success: the true cost per successful task
         r["cost_per_success"] = round(cost / sr, 4) if sr > 0 else None
         # Higher = better quality efficiency per log-cost unit
-        r["value_score"] = round(sr * (quality / 5.0) / math.log1p(cost), 4)
+        # Speed bonus: faster models score higher when quality+cost are equal.
+        # Use log1p(duration) as a soft penalty so a 6s model beats a 30s model
+        # at equal quality/cost, but a huge quality gap can still override speed.
+        duration = max(float(r.get("avg_duration_s") or r.get("avg_duration") or 10.0), 0.1)
+        r["value_score"] = round(sr * (quality / 5.0) / (math.log1p(cost) + 0.1 * math.log1p(duration)), 4)
         # Eligible if: above reliability floor AND within quality tolerance of best
         r["within_tolerance"] = (sr >= RELIABILITY_FLOOR) and (sr >= min_sr)
 
-    # Among eligible: sort by cost_per_success ASC (cheapest per win first)
+    # Among eligible: sort by cost_per_success ASC, then by duration ASC as tiebreaker
     # When cost_per_success is None (zero cost tasks), treat as 0 (free wins always first)
+    # For free models at equal cost, faster duration wins.
     eligible = sorted(
         [r for r in rows_out if r["within_tolerance"]],
-        key=lambda r: (r["cost_per_success"] if r["cost_per_success"] is not None else 0.0)
+        key=lambda r: (
+            r["cost_per_success"] if r["cost_per_success"] is not None else 0.0,
+            float(r.get("avg_duration_s") or r.get("avg_duration") or 999.0)
+        )
     )
     ineligible = sorted(
         [r for r in rows_out if not r["within_tolerance"]],
