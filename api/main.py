@@ -421,7 +421,7 @@ ACTIVE_POOL = [
     "anthropic/claude-sonnet-4-6",
     "deepseek/deepseek-v4-flash",
     "openai/gpt-4o-mini",
-    "google/gemini-2.0-flash-001",
+    "google/gemini-2.5-flash",
     "mistralai/mistral-small-3.2-24b-instruct",
     "anthropic/claude-opus-4.8",
     "anthropic/claude-haiku-4.5",
@@ -1252,16 +1252,14 @@ _MODEL_REGISTRY = {
     # Mid / Mid-cheap
     "anthropic/claude-haiku-4.5":   {"cost": 0.22,  "tier": "mid",         "speed": "fast",   "strength": "latest haiku, improved reasoning"},
     "mistralai/mistral-small-3.2-24b-instruct": {"cost": 0.075, "tier": "mid_cheap", "speed": "fast", "strength": "coding, writing, EU-friendly, cost-effective"},
-    "google/gemini-2.0-flash-001":  {"cost": 0.10,  "tier": "mid",         "speed": "fast",   "strength": "general, coding, multimodal-ready, large context"},
+    "google/gemini-2.5-flash":  {"cost": 0.15,  "tier": "mid",         "speed": "fast",   "strength": "general, coding, multimodal-ready, large context"},
     "openai/o3-mini":               {"cost": 0.40,  "tier": "mid",         "speed": "medium", "strength": "math, reasoning, coding precision"},
     # Quality
     "anthropic/claude-sonnet-4-6":  {"cost": 0.689, "tier": "quality",     "speed": "medium", "strength": "strategy, complex tasks, coding"},
     # Apex (escalation after Sonnet fails)
     "anthropic/claude-opus-4.8":    {"cost": 5.0,   "tier": "apex",        "speed": "medium", "strength": "security audit, architecture, highest-stakes decisions — escalation after Sonnet fails"},
-    # Security oracle (rare, expensive — gatekeeper only)
-    "anthropic/claude-opus-4":      {"cost": 4.50,  "tier": "oracle",      "speed": "slow",   "strength": "security audit, high-risk verification, critical decisions"},
     # RETIRED
-    # "google/gemini-2.0-flash-001" (v1) — no endpoints on OpenRouter as of 2026-06-05
+    # "google/gemini-2.5-flash" (v1) — no endpoints on OpenRouter as of 2026-06-05
 }
 
 def _model_info(model_id: str) -> dict:
@@ -2800,13 +2798,13 @@ async def get_goal(goal_id: str, x_api_key: Optional[str] = Header(None)):
 # ── Cascade / Retry Waterfall ──────────────────────────────────────────────────
 CASCADE_ORDER = {
     "coding":   ["openai/gpt-4o-mini", "mistralai/mistral-small-3.2-24b-instruct", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
-    "research": ["deepseek/deepseek-v4-flash", "google/gemini-2.0-flash-001", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
+    "research": ["deepseek/deepseek-v4-flash", "google/gemini-2.5-flash", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
     "writing":  ["deepseek/deepseek-v4-flash", "mistralai/mistral-small-3.2-24b-instruct", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
     "data":     ["deepseek/deepseek-v4-flash", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
     "math":     ["openai/o3-mini", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
-    "analysis": ["openai/gpt-4o-mini", "google/gemini-2.0-flash-001", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
+    "analysis": ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
     "build":    ["openai/gpt-4o-mini", "mistralai/mistral-small-3.2-24b-instruct", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
-    "general":  ["openai/gpt-4o-mini", "google/gemini-2.0-flash-001", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
+    "general":  ["openai/gpt-4o-mini", "google/gemini-2.5-flash", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
     "strategy": ["anthropic/claude-sonnet-4-6"],
     "security": ["anthropic/claude-sonnet-4-6", "anthropic/claude-opus-4.8"],
     "orchestration": ["anthropic/claude-sonnet-4-6"],
