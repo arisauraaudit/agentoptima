@@ -430,8 +430,8 @@ ACTIVE_POOL = [
     "qwen/qwen3-235b-a22b",
     "microsoft/phi-4",
     "cohere/command-r-plus-08-2024",
-    "x-ai/grok-3-mini-beta",
-    "nvidia/llama-3.1-nemotron-70b-instruct",
+    # "x-ai/grok-3-mini-beta",          # DEAD — 404 on OpenRouter as of 2026-06-07
+    # "nvidia/llama-3.1-nemotron-70b-instruct",  # DEAD — 404 on OpenRouter as of 2026-06-07
 ]
 
 # ── Per-task-type quality tolerance ───────────────────────────────────────────
@@ -1269,8 +1269,8 @@ _MODEL_REGISTRY = {
     "qwen/qwen3-235b-a22b": {"cost": 0.13, "tier": "mid", "speed": "medium", "strength": "coding, math, multilingual, massive scale"},
     "microsoft/phi-4": {"cost": 0.07, "tier": "mid_cheap", "speed": "fast", "strength": "math, reasoning, small but precise"},
     "cohere/command-r-plus-08-2024": {"cost": 0.15, "tier": "mid", "speed": "medium", "strength": "research, RAG, document analysis"},
-    "x-ai/grok-3-mini-beta": {"cost": 0.11, "tier": "mid", "speed": "fast", "strength": "reasoning, coding, competitive pricing"},
-    "nvidia/llama-3.1-nemotron-70b-instruct": {"cost": 0.12, "tier": "mid", "speed": "fast", "strength": "technical tasks, NVIDIA-tuned, strong at code"},
+    # "x-ai/grok-3-mini-beta": DEAD — removed 2026-06-07 (404 on OpenRouter)
+    # "nvidia/llama-3.1-nemotron-70b-instruct": DEAD — removed 2026-06-07 (404 on OpenRouter)
     # RETIRED
     # "google/gemini-2.5-flash" (v1) — no endpoints on OpenRouter as of 2026-06-05
 }
@@ -2810,13 +2810,13 @@ async def get_goal(goal_id: str, x_api_key: Optional[str] = Header(None)):
 
 # ── Cascade / Retry Waterfall ──────────────────────────────────────────────────
 CASCADE_ORDER = {
-    "coding":        ["openai/gpt-4o-mini", "mistralai/mistral-small-3.2-24b-instruct", "x-ai/grok-3-mini-beta", "qwen/qwen3-235b-a22b", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
+    "coding":        ["openai/gpt-4o-mini", "mistralai/mistral-small-3.2-24b-instruct", "microsoft/phi-4", "qwen/qwen3-235b-a22b", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
     "research":      ["deepseek/deepseek-v4-flash", "cohere/command-r-plus-08-2024", "google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
     "writing":       ["deepseek/deepseek-v4-flash", "mistralai/mistral-small-3.2-24b-instruct", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
     "data":          ["deepseek/deepseek-v4-flash", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
     "math":          ["openai/o3-mini", "microsoft/phi-4", "qwen/qwen3-235b-a22b", "openai/gpt-4o-mini", "anthropic/claude-haiku-4.5"],
     "analysis":      ["openai/gpt-4o-mini", "cohere/command-r-plus-08-2024", "google/gemini-2.5-flash", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
-    "build":         ["openai/gpt-4o-mini", "nvidia/llama-3.1-nemotron-70b-instruct", "mistralai/mistral-small-3.2-24b-instruct", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
+    "build":         ["openai/gpt-4o-mini", "cohere/command-r-plus-08-2024", "mistralai/mistral-small-3.2-24b-instruct", "anthropic/claude-haiku-4.5", "openai/o3-mini"],
     "general":       ["openai/gpt-4o-mini", "meta-llama/llama-3.3-70b-instruct", "google/gemini-2.5-flash", "deepseek/deepseek-v4-flash", "anthropic/claude-haiku-4.5"],
     "strategy":      ["anthropic/claude-sonnet-4-6"],
     "security":      ["anthropic/claude-sonnet-4-6", "anthropic/claude-opus-4.8"],
