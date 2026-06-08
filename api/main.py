@@ -802,32 +802,48 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
             if effective_subtype:
                 # 1. Try subtype-specific data first
                 cur.execute("""
-                    SELECT model, COUNT(*) AS tasks,
-                        AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
-                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
-                        AVG(quality_score) AS avg_quality
-                    FROM tasks
-                    WHERE task_type=%s AND task_subtype=%s
-                    GROUP BY model HAVING COUNT(*) >= %s
-                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
-                             AVG(quality_score) DESC NULLS LAST,
-                             AVG(cost_cents) ASC
+                    SELECT t.model, COUNT(*) AS tasks,
+                        AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                        AVG(t.duration_s) AS avg_duration, AVG(t.cost_cents) AS avg_cost_cents,
+                        COALESCE(
+                            AVG(t.quality_score),
+                            (SELECT score FROM benchmark_results
+                             WHERE model=t.model AND benchmark_name='arena_elo'
+                             ORDER BY created_at DESC LIMIT 1)
+                        ) AS avg_quality
+                    FROM tasks t
+                    WHERE t.task_type=%s AND t.task_subtype=%s
+                    GROUP BY t.model HAVING COUNT(*) >= %s
+                    ORDER BY AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) DESC,
+                             COALESCE(AVG(t.quality_score),
+                                (SELECT score FROM benchmark_results
+                                 WHERE model=t.model AND benchmark_name='arena_elo'
+                                 ORDER BY created_at DESC LIMIT 1)) DESC NULLS LAST,
+                             AVG(t.cost_cents) ASC
                 """, (effective_base, effective_subtype, min_tasks))
                 rows = cur.fetchall()
 
                 # 2. Fall back to category-level if no subtype data yet
                 if not rows:
                     cur.execute("""
-                        SELECT model, COUNT(*) AS tasks,
-                            AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
-                            AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
-                            AVG(quality_score) AS avg_quality
-                        FROM tasks
-                        WHERE task_type=%s
-                        GROUP BY model HAVING COUNT(*) >= %s
-                        ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
-                                 AVG(quality_score) DESC NULLS LAST,
-                                 AVG(cost_cents) ASC
+                        SELECT t.model, COUNT(*) AS tasks,
+                            AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                            AVG(t.duration_s) AS avg_duration, AVG(t.cost_cents) AS avg_cost_cents,
+                            COALESCE(
+                                AVG(t.quality_score),
+                                (SELECT score FROM benchmark_results
+                                 WHERE model=t.model AND benchmark_name='arena_elo'
+                                 ORDER BY created_at DESC LIMIT 1)
+                            ) AS avg_quality
+                        FROM tasks t
+                        WHERE t.task_type=%s
+                        GROUP BY t.model HAVING COUNT(*) >= %s
+                        ORDER BY AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) DESC,
+                                 COALESCE(AVG(t.quality_score),
+                                    (SELECT score FROM benchmark_results
+                                     WHERE model=t.model AND benchmark_name='arena_elo'
+                                     ORDER BY created_at DESC LIMIT 1)) DESC NULLS LAST,
+                                 AVG(t.cost_cents) ASC
                     """, (effective_base, min_tasks))
                     rows = cur.fetchall()
                     if rows:
@@ -851,16 +867,24 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                         }
             else:
                 cur.execute("""
-                    SELECT model, COUNT(*) AS tasks,
-                        AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) AS success_rate,
-                        AVG(duration_s) AS avg_duration, AVG(cost_cents) AS avg_cost_cents,
-                        AVG(quality_score) AS avg_quality
-                    FROM tasks
-                    WHERE task_type=%s
-                    GROUP BY model HAVING COUNT(*) >= %s
-                    ORDER BY AVG(CASE WHEN success THEN 1.0 ELSE 0.0 END) DESC,
-                             AVG(quality_score) DESC NULLS LAST,
-                             AVG(cost_cents) ASC
+                    SELECT t.model, COUNT(*) AS tasks,
+                        AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) AS success_rate,
+                        AVG(t.duration_s) AS avg_duration, AVG(t.cost_cents) AS avg_cost_cents,
+                        COALESCE(
+                            AVG(t.quality_score),
+                            (SELECT score FROM benchmark_results
+                             WHERE model=t.model AND benchmark_name='arena_elo'
+                             ORDER BY created_at DESC LIMIT 1)
+                        ) AS avg_quality
+                    FROM tasks t
+                    WHERE t.task_type=%s
+                    GROUP BY t.model HAVING COUNT(*) >= %s
+                    ORDER BY AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) DESC,
+                             COALESCE(AVG(t.quality_score),
+                                (SELECT score FROM benchmark_results
+                                 WHERE model=t.model AND benchmark_name='arena_elo'
+                                 ORDER BY created_at DESC LIMIT 1)) DESC NULLS LAST,
+                             AVG(t.cost_cents) ASC
                 """, (effective_base, min_tasks))
                 rows = cur.fetchall()
                 rows = [r for r in rows if r["model"] in _MODEL_REGISTRY]

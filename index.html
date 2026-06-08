@@ -1386,7 +1386,7 @@ loadContracts();
                                 const isLeader = stProg.current_leader === modelId;
                                 const stRate  = ((st.success_rate||0)*100).toFixed(0);
                                 const stCost  = (st.avg_cost_cents||0) < 0.1 ? '<$0.001' : '$' + ((st.avg_cost_cents||0)/100).toFixed(4);
-                                const stQ     = st.avg_quality ? `<span style="color:#a78bfa;font-size:0.7rem">q=${st.avg_quality}</span>` : '';
+                                const stQ     = st.avg_quality ? `<span style="color:#a78bfa;font-size:0.7rem">${parseFloat(st.avg_quality).toFixed(1)} ⭐</span>` : '<span style="color:#475569;font-size:0.7rem">—</span>';
                                 const routeBadge = stReady && isLeader
                                     ? `<span style="color:#10b981;font-size:0.68rem;font-weight:700">🎯 routing</span>`
                                     : stReady
@@ -1542,7 +1542,7 @@ loadContracts();
                         const leader = ready ? rawLeader : (catRouting[cat] || rawLeader);
                         const isFallback = !ready && catRouting[cat];
                         const stName = st.subtype.split('/')[1] || st.subtype;
-                        const qualLabel = st.leader_quality ? `q=${st.leader_quality}` : '';
+                        const qualLabel = st.leader_quality ? `${parseFloat(st.leader_quality).toFixed(1)} ⭐` : '—';
                         const costLabel = st.leader_cost ? `${st.leader_cost < 0.1 ? '<$0.001' : '$'+(st.leader_cost/100).toFixed(4)}/task` : '';
                         const statusDot = ready
                             ? `<span style="color:#10b981;font-size:0.7rem;font-weight:700">● LIVE</span>`
@@ -1557,7 +1557,7 @@ loadContracts();
                             background:rgba(0,0,0,0.12);min-width:0">
                             <span style="color:${col};opacity:0.8;font-size:0.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${stName}</span>
                             <span style="color:${providerColour(leader)};font-weight:600;font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;justify-self:end">${providerTag(leader)} ${shortName(leader)}</span>
-                            <span style="color:#a78bfa;font-size:0.72rem;white-space:nowrap">${qualLabel}</span>
+                            <span title="Quality score (Arena ELO)" style="color:#a78bfa;font-size:0.72rem;white-space:nowrap">${qualLabel}</span>
                             <span style="color:#f59e0b;font-size:0.72rem;white-space:nowrap">${costLabelShort}</span>
                             <span style="white-space:nowrap">${statusDot}</span>
                         </div>`;
