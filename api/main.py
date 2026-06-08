@@ -807,18 +807,18 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                         AVG(t.duration_s) AS avg_duration, AVG(t.cost_cents) AS avg_cost_cents,
                         COALESCE(
                             AVG(t.quality_score),
-                            (SELECT score FROM benchmark_results
+                            (SELECT total_score FROM benchmark_results
                              WHERE model=t.model AND benchmark_name='arena_elo'
-                             ORDER BY created_at DESC LIMIT 1)
+                             ORDER BY run_at DESC LIMIT 1)
                         ) AS avg_quality
                     FROM tasks t
                     WHERE t.task_type=%s AND t.task_subtype=%s
                     GROUP BY t.model HAVING COUNT(*) >= %s
                     ORDER BY AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) DESC,
                              COALESCE(AVG(t.quality_score),
-                                (SELECT score FROM benchmark_results
+                                (SELECT total_score FROM benchmark_results
                                  WHERE model=t.model AND benchmark_name='arena_elo'
-                                 ORDER BY created_at DESC LIMIT 1)) DESC NULLS LAST,
+                                 ORDER BY run_at DESC LIMIT 1)) DESC NULLS LAST,
                              AVG(t.cost_cents) ASC
                 """, (effective_base, effective_subtype, min_tasks))
                 rows = cur.fetchall()
@@ -831,18 +831,18 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                             AVG(t.duration_s) AS avg_duration, AVG(t.cost_cents) AS avg_cost_cents,
                             COALESCE(
                                 AVG(t.quality_score),
-                                (SELECT score FROM benchmark_results
+                                (SELECT total_score FROM benchmark_results
                                  WHERE model=t.model AND benchmark_name='arena_elo'
-                                 ORDER BY created_at DESC LIMIT 1)
+                                 ORDER BY run_at DESC LIMIT 1)
                             ) AS avg_quality
                         FROM tasks t
                         WHERE t.task_type=%s
                         GROUP BY t.model HAVING COUNT(*) >= %s
                         ORDER BY AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) DESC,
                                  COALESCE(AVG(t.quality_score),
-                                    (SELECT score FROM benchmark_results
+                                    (SELECT total_score FROM benchmark_results
                                      WHERE model=t.model AND benchmark_name='arena_elo'
-                                     ORDER BY created_at DESC LIMIT 1)) DESC NULLS LAST,
+                                     ORDER BY run_at DESC LIMIT 1)) DESC NULLS LAST,
                                  AVG(t.cost_cents) ASC
                     """, (effective_base, min_tasks))
                     rows = cur.fetchall()
@@ -872,18 +872,18 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                         AVG(t.duration_s) AS avg_duration, AVG(t.cost_cents) AS avg_cost_cents,
                         COALESCE(
                             AVG(t.quality_score),
-                            (SELECT score FROM benchmark_results
+                            (SELECT total_score FROM benchmark_results
                              WHERE model=t.model AND benchmark_name='arena_elo'
-                             ORDER BY created_at DESC LIMIT 1)
+                             ORDER BY run_at DESC LIMIT 1)
                         ) AS avg_quality
                     FROM tasks t
                     WHERE t.task_type=%s
                     GROUP BY t.model HAVING COUNT(*) >= %s
                     ORDER BY AVG(CASE WHEN t.success THEN 1.0 ELSE 0.0 END) DESC,
                              COALESCE(AVG(t.quality_score),
-                                (SELECT score FROM benchmark_results
+                                (SELECT total_score FROM benchmark_results
                                  WHERE model=t.model AND benchmark_name='arena_elo'
-                                 ORDER BY created_at DESC LIMIT 1)) DESC NULLS LAST,
+                                 ORDER BY run_at DESC LIMIT 1)) DESC NULLS LAST,
                              AVG(t.cost_cents) ASC
                 """, (effective_base, min_tasks))
                 rows = cur.fetchall()
