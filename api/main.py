@@ -424,6 +424,7 @@ ACTIVE_POOL = [
     "google/gemini-2.5-flash",
     "mistralai/mistral-small-3.2-24b-instruct",
     "anthropic/claude-opus-4.8",
+    "anthropic/claude-opus-4.7",
     "anthropic/claude-haiku-4.5",
     "openai/o3-mini",
     "meta-llama/llama-3.3-70b-instruct",
@@ -1280,7 +1281,8 @@ _MODEL_REGISTRY = {
     # Quality
     "anthropic/claude-sonnet-4-6":  {"cost": 0.689, "tier": "quality",     "speed": "medium", "strength": "strategy, complex tasks, coding"},
     # Apex (escalation after Sonnet fails)
-    "anthropic/claude-opus-4.8":    {"cost": 5.0,   "tier": "apex",        "speed": "medium", "strength": "security audit, architecture, highest-stakes decisions — escalation after Sonnet fails"},
+    "anthropic/claude-opus-4.8":    {"cost": 5.0,   "tier": "apex",        "speed": "medium", "strength": "most capable Opus, autonomous agents, long-horizon work, memory-driven tasks — escalation apex"},
+    "anthropic/claude-opus-4.7":    {"cost": 5.0,   "tier": "apex",        "speed": "medium", "strength": "Opus 4.7 — complex multi-step agents, reliable agentic execution, large codebases, multi-stage debugging"},
     # NEW CANDIDATES (v1.1.10)
     "meta-llama/llama-3.3-70b-instruct": {"cost": 0.09, "tier": "mid", "speed": "fast", "strength": "general reasoning, open-source, strong baseline"},
     "qwen/qwen3-235b-a22b": {"cost": 0.13, "tier": "mid", "speed": "medium", "strength": "coding, math, multilingual, massive scale"},
