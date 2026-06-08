@@ -3007,6 +3007,41 @@ async def get_task(task_id: str, x_api_key: Optional[str] = Header(None)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/internal/admin/remap-model")
+async def remap_model(x_api_key: Optional[str] = Header(None),
+                      from_model: str = None, to_model: str = None,
+                      before_ts: str = None, dry_run: bool = False):
+    """Admin: bulk-rename model field on tasks. from_model→to_model, optionally filtered by logged_at < before_ts."""
+    verify_key(x_api_key)
+    if not from_model or not to_model:
+        raise HTTPException(status_code=422, detail="from_model and to_model are required")
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                if before_ts:
+                    cur.execute(
+                        "SELECT COUNT(*) FROM tasks WHERE model=%s AND logged_at < %s",
+                        (from_model, before_ts)
+                    )
+                else:
+                    cur.execute("SELECT COUNT(*) FROM tasks WHERE model=%s", (from_model,))
+                count = cur.fetchone()[0]
+                if dry_run:
+                    return {"dry_run": True, "would_update": count, "from_model": from_model, "to_model": to_model}
+                if before_ts:
+                    cur.execute(
+                        "UPDATE tasks SET model=%s WHERE model=%s AND logged_at < %s",
+                        (to_model, from_model, before_ts)
+                    )
+                else:
+                    cur.execute("UPDATE tasks SET model=%s WHERE model=%s", (to_model, from_model))
+            conn.commit()
+        return {"updated": count, "from_model": from_model, "to_model": to_model, "before_ts": before_ts}
+    except Exception as e:
+        logger.error(f"remap_model error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/internal/goals/{goal_id}")
 async def get_goal(goal_id: str, x_api_key: Optional[str] = Header(None)):
     """Fetch all tasks under a goal_id with summary stats."""
