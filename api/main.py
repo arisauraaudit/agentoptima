@@ -714,15 +714,24 @@ def cost_aware_rank(rows: list, quality_tolerance: float = 0.10) -> list:
     for r in rows_out:
         sr = float(r["success_rate"])
         cost = max(float(r.get("avg_cost_cents") or 0.001), 0.001)
-        quality = float(r.get("avg_quality") or 4.0)
+        raw_quality = r.get("avg_quality")
+        quality = float(raw_quality) if raw_quality and float(raw_quality) > 0 else None
         # cost_per_success: the true cost per successful task
         r["cost_per_success"] = round(cost / sr, 4) if sr > 0 else None
-        # Higher = better quality efficiency per log-cost unit
+        # Quality-weighted scoring when Arena ELO quality data is available.
+        # Blend: 60% quality-weighted + 40% pure cost efficiency.
+        # This prevents pure cost optimisation from picking low-quality cheap models
+        # while still rewarding cost efficiency — the 60/40 blend finds the sweet spot.
         # Speed bonus: faster models score higher when quality+cost are equal.
-        # Use log1p(duration) as a soft penalty so a 6s model beats a 30s model
-        # at equal quality/cost, but a huge quality gap can still override speed.
         duration = max(float(r.get("avg_duration_s") or r.get("avg_duration") or 10.0), 0.1)
-        r["value_score"] = round(sr * (quality / 5.0) / (math.log1p(cost) + 0.1 * math.log1p(duration)), 4)
+        if quality is not None:
+            quality_value_score = sr * quality / (math.log1p(cost) + 0.1 * math.log1p(duration))
+            cost_value_score    = sr * (4.0 / 5.0) / (math.log1p(cost) + 0.1 * math.log1p(duration))
+            r["value_score"]  = round(0.6 * quality_value_score + 0.4 * cost_value_score, 4)
+            r["scoring_mode"] = "quality_weighted"
+        else:
+            r["value_score"]  = round(sr * (4.0 / 5.0) / (math.log1p(cost) + 0.1 * math.log1p(duration)), 4)
+            r["scoring_mode"] = "cost_aware"
         # Eligible if: above reliability floor AND within quality tolerance of best
         r["within_tolerance"] = (sr >= RELIABILITY_FLOOR) and (sr >= min_sr)
 
@@ -825,7 +834,7 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
                         return {
                             "mode": "data-driven",
                             "resolution": "category_fallback",
-                            "scoring_mode": "cost_aware",
+                            "scoring_mode": rows[0].get("scoring_mode", "cost_aware"),
                             "quality_tolerance": effective_tolerance,
                             "task_type": effective_base,
                             "task_subtype": effective_subtype,
@@ -868,7 +877,7 @@ async def get_recommendation(task_type: str = "general", task_subtype: str = Non
     return {
         "mode": "data-driven",
         "resolution": "subtype" if effective_subtype else "category",
-        "scoring_mode": "cost_aware",
+        "scoring_mode": best.get("scoring_mode", "cost_aware"),
         "quality_tolerance": effective_tolerance,
         "task_type": effective_base,
         "task_subtype": effective_subtype,

@@ -1288,7 +1288,8 @@ loadContracts();
             return Math.min(100, Math.round(avgSuccess * 40 + (avgQuality / 5) * 30 + costScore));
         }
 
-        function renderRankings(models, routing, subtypeRows, subtypeProgress) {
+        function renderRankings(models, routing, subtypeRows, subtypeProgress, routingMeta) {
+            routingMeta = routingMeta || {};
             routing = routing || {};
             subtypeProgress = subtypeProgress || {};
             rankingsData = models;
@@ -1371,7 +1372,8 @@ loadContracts();
                         const cRate    = ((r.success_rate||0)*100).toFixed(0);
                         const cCost    = (r.avg_cost_cents||0) < 0.1 ? '<$0.001' : '$' + ((r.avg_cost_cents||0)/100).toFixed(4);
                         const isTop    = routing[c] === modelId;
-                        const topBadge = isTop ? `<span style="color:#10b981;font-size:0.75rem;font-weight:700">🎯 Active route</span>` : '';
+                        const scoringIcon = isTop && routingMeta[c] ? (routingMeta[c].scoring_mode === 'quality_weighted' ? ' ⭐' : ' ⚡') : '';
+                        const topBadge = isTop ? `<span title="Scoring: ${(routingMeta[c]||{}).scoring_mode||'cost_aware'}" style="color:#10b981;font-size:0.75rem;font-weight:700">🎯 Active route${scoringIcon}</span>` : '';
 
                         // Build nested subtype rows for this model+category
                         const modelSubtypes = (subtypeMap[modelId] && subtypeMap[modelId][c]) || [];
@@ -1665,13 +1667,15 @@ loadContracts();
                     CATS.map(c => fetchAPI(`/recommend?task_type=${c}&min_tasks=10`))
                 );
                 const routing = {};
+                const routingMeta = {};
                 CATS.forEach((c, i) => {
                     if (recResults[i].status === 'fulfilled' && recResults[i].value.mode === 'data-driven') {
                         routing[c] = recResults[i].value.recommended_model;
+                        routingMeta[c] = { scoring_mode: recResults[i].value.scoring_mode || 'cost_aware' };
                     }
                 });
                 // Re-render rankings with routing data + subtypes baked in
-                renderRankings(rankingsData, routing, _subtypeRows, _subtypeProgress);
+                renderRankings(rankingsData, routing, _subtypeRows, _subtypeProgress, routingMeta);
                 // Render routing map (pass subtypeRows as fallback when subtype-progress times out)
                 renderRoutingMap(_subtypeProgress, routing, _subtypeRows);
             } catch(e) { console.error('Routing recommendations failed:', e); }
