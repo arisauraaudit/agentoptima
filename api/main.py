@@ -1976,6 +1976,159 @@ async def context_analyze(
     }
 
 
+# ── Session Intelligence endpoints ─────────────────────────────────────────────
+
+# Lazy imports — keep at this location, NOT at file top
+import sys as _sys
+_sys.path.insert(0, "/root/.aris")
+try:
+    from session_intelligence import evaluate_session_with_data
+    from si_tracker import record_outcome, get_performance_summary, CONTEXT_BUCKETS
+    _SI_AVAILABLE = True
+except ImportError:
+    _SI_AVAILABLE = False
+
+
+class SIEvaluateRequest(BaseModel):
+    current_tokens: int
+    current_model:  str
+    task_type:      str = "general"
+
+
+class SIRecordRequest(BaseModel):
+    model:          str
+    context_tokens: int
+    task_type:      str
+    success:        bool
+    cost_cents:     float = 0.0
+    duration_s:     int   = 0
+
+
+@app.post("/api/v1/si/evaluate")
+async def si_evaluate(
+    req: SIEvaluateRequest,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+):
+    """
+    Session Intelligence — evaluate whether to shift model for the current session.
+    Returns routing recommendation, savings estimate, and optional data-driven override.
+    """
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    if not _SI_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Session Intelligence not available")
+    try:
+        result = evaluate_session_with_data(
+            current_tokens=req.current_tokens,
+            current_model=req.current_model,
+            task_type=req.task_type,
+        )
+        return {
+            "action":               result.get("action"),
+            "recommended_model":    result.get("recommended_model"),
+            "reason":               result.get("reason"),
+            "estimated_savings_pct": result.get("estimated_savings_pct", 0),
+            "bucket":               result.get("bucket"),
+            "data_driven":          result.get("data_driven", False),
+            "threshold_hit":        result.get("threshold_hit"),
+            "fit_score":            result.get("fit_score", 0),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/si/record")
+async def si_record(
+    req: SIRecordRequest,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+):
+    """
+    Session Intelligence — record the outcome of a completed task.
+    Feeds si_tracker to build empirical performance data over time.
+    """
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    if not _SI_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Session Intelligence not available")
+    try:
+        # Determine bucket from context tokens
+        bucket = None
+        for bkey, (bmin, bmax) in CONTEXT_BUCKETS.items():
+            if bmax is None:
+                if req.context_tokens >= bmin:
+                    bucket = bkey
+                    break
+            elif bmin <= req.context_tokens < bmax:
+                bucket = bkey
+                break
+        if bucket is None:
+            bucket = "bucket_0"
+
+        record_outcome(
+            model=req.model,
+            context_tokens=req.context_tokens,
+            task_type=req.task_type,
+            success=req.success,
+            cost_cents=req.cost_cents,
+            duration_s=float(req.duration_s),
+        )
+        return {"recorded": True, "bucket": bucket}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/si/savings")
+async def si_savings(user_id: Optional[str] = None):
+    """
+    Session Intelligence — aggregated savings report.
+    Public endpoint: no auth required (no sensitive data).
+    Returns total model shifts, estimated savings in USD, and performance summary.
+    """
+    if not _SI_AVAILABLE:
+        return {
+            "total_shifts":             0,
+            "estimated_savings_cents":  0.0,
+            "estimated_savings_usd":    0.0,
+            "top_model_shifted_to":     None,
+            "performance_summary":      {},
+        }
+    try:
+        import os as _os, json as _json
+        perf = get_performance_summary()
+        records_path = "/root/.aris/logs/si_performance.json"
+        raw_records: list = []
+        if _os.path.exists(records_path):
+            try:
+                with open(records_path) as _f:
+                    raw_records = _json.load(_f)
+            except Exception:
+                raw_records = []
+
+        total_shifts        = len(raw_records)
+        total_savings_cents = sum(r.get("cost_cents", 0.0) for r in raw_records if r.get("success"))
+
+        # Top model shifted to (most frequent model in records)
+        model_counts: dict = {}
+        for r in raw_records:
+            m = r.get("model", "")
+            if m:
+                model_counts[m] = model_counts.get(m, 0) + 1
+        top_model = max(model_counts, key=model_counts.get) if model_counts else None
+
+        return {
+            "total_shifts":             total_shifts,
+            "estimated_savings_cents":  round(total_savings_cents, 4),
+            "estimated_savings_usd":    round(total_savings_cents / 100, 6),
+            "top_model_shifted_to":     top_model,
+            "performance_summary":      perf,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── /Session Intelligence endpoints ─────────────────────────────────────────────
+
+
 @app.get("/api/v1/gate/stats")
 async def gate_stats():
     """Aggregate gate stats: total checks, blocked count, by risk level."""

@@ -973,7 +973,33 @@ rec = requests.<span class="function">get</span>(
         </div>
         <!-- ── /Routing Intelligence ──────────────────────────────────────── -->
 
-        
+
+        <!-- ── Session Intelligence Widget ────────────────────────────────────── -->
+        <div class="section" id="si-section">
+            <h2 class="section-title">🧠 Session Intelligence</h2>
+            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
+                Real-time context-aware model routing savings. Aris shifts to cheaper models when context is large, tracking every dollar saved.
+            </p>
+            <div class="metrics-grid" id="si-metrics-grid" style="margin:0 0 1rem">
+                <div class="metric-card">
+                    <div class="metric-value" id="si-savings-value" style="color:#10b981">--</div>
+                    <div class="metric-label">SI Savings</div>
+                    <div class="metric-sub">estimated via model shifts</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="si-shifts-value">--</div>
+                    <div class="metric-label">Shifts</div>
+                    <div class="metric-sub">total model shifts executed</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="si-model-value" style="font-size:1rem;word-break:break-all">--</div>
+                    <div class="metric-label">Top Model</div>
+                    <div class="metric-sub">most-shifted-to model</div>
+                </div>
+            </div>
+            <p style="color:#64748b;font-size:0.8rem;margin-top:0.5rem" id="si-status-line">Loading Session Intelligence data…</p>
+        </div>
+        <!-- ── /Session Intelligence Widget ────────────────────────────────────── -->
 
 
         <!-- ── Routing Map ─────────────────────────────────────────────── -->
@@ -1908,13 +1934,57 @@ loadContracts();
 
         // ── /Routing Intelligence Functions ─────────────────────────────────────────────
 
+        // ── Session Intelligence Widget ───────────────────────────────────────────
+        async function loadSISavings() {
+            try {
+                const resp = await fetch('https://agentoptima.ai/api/v1/si/savings');
+                if (!resp.ok) throw new Error('si/savings ' + resp.status);
+                const data = await resp.json();
+
+                const savingsEl  = document.getElementById('si-savings-value');
+                const shiftsEl   = document.getElementById('si-shifts-value');
+                const modelEl    = document.getElementById('si-model-value');
+                const statusEl   = document.getElementById('si-status-line');
+
+                const totalShifts = data.total_shifts || 0;
+
+                if (totalShifts === 0) {
+                    savingsEl.textContent = 'Collecting data…';
+                    shiftsEl.textContent  = '0';
+                    modelEl.textContent   = '—';
+                    if (statusEl) statusEl.textContent = 'No shifts recorded yet — data accumulates as Aris routes sessions.';
+                } else {
+                    const usd = typeof data.estimated_savings_usd === 'number'
+                        ? '$' + data.estimated_savings_usd.toFixed(4)
+                        : 'Collecting data…';
+                    savingsEl.textContent = usd;
+                    shiftsEl.textContent  = totalShifts.toLocaleString();
+
+                    // Shorten long model IDs for display
+                    let topModel = data.top_model_shifted_to || '—';
+                    if (topModel.includes('/')) topModel = topModel.split('/').pop();
+                    modelEl.textContent = topModel;
+
+                    if (statusEl) statusEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString() + ' • Auto-refreshes every 60s';
+                }
+            } catch (e) {
+                console.warn('SI savings fetch failed:', e);
+                const statusEl = document.getElementById('si-status-line');
+                if (statusEl) statusEl.textContent = 'SI data unavailable — will retry in 60s';
+            }
+        }
+        // ── /Session Intelligence Widget ───────────────────────────────────────────
+
         // Initialize
         refresh();
         loadEfficiencyData();
+        loadSISavings();
         // Auto-refresh every 15 seconds (feed is the key update)
         setInterval(refresh, 15000);
         // Efficiency auto-refresh every 60 seconds
         setInterval(loadEfficiencyData, 60000);
+        // SI savings auto-refresh every 60 seconds
+        setInterval(loadSISavings, 60000);
         
         console.log('AgentOptima Dashboard initialized', new Date());
     </script>
