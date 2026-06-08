@@ -1984,6 +1984,7 @@ _sys.path.insert(0, "/root/.aris")
 try:
     from session_intelligence import evaluate_session_with_data
     from si_tracker import record_outcome, get_performance_summary, CONTEXT_BUCKETS
+    from si_config import get_config, set_config
     _SI_AVAILABLE = True
 except ImportError:
     _SI_AVAILABLE = False
@@ -2122,6 +2123,60 @@ async def si_savings(user_id: Optional[str] = None):
             "top_model_shifted_to":     top_model,
             "performance_summary":      perf,
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── SI config endpoints ─────────────────────────────────────────────────────
+
+class SIConfigUpdate(BaseModel):
+    enabled:              Optional[bool]  = None
+    mode:                 Optional[str]   = None
+    threshold_multiplier: Optional[float] = None
+    preferred_models:     Optional[list]  = None
+    blocked_models:       Optional[list]  = None
+    min_savings_pct:      Optional[float] = None
+    notify_on_shift:      Optional[bool]  = None
+
+
+@app.get("/api/v1/si/config/{user_id}")
+async def si_get_config(user_id: str):
+    """
+    Session Intelligence — return user's SI config.
+    Public endpoint: no auth required.
+    """
+    if not _SI_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Session Intelligence not available")
+    try:
+        config = get_config(user_id)
+        return {"user_id": user_id, "config": config}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/v1/si/config/{user_id}")
+async def si_update_config(
+    user_id: str,
+    body: SIConfigUpdate,
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+):
+    """
+    Session Intelligence — update user SI config.
+    Requires X-API-Key.
+    Body: any subset of DEFAULT_CONFIG fields.
+    Response: { updated: true, config: {...} }
+    """
+    verify_key(x_api_key)
+    if not _SI_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Session Intelligence not available")
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No update fields provided")
+    try:
+        updated_config = set_config(user_id, updates)
+        return {"updated": True, "config": updated_config}
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
