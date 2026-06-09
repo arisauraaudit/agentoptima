@@ -784,7 +784,7 @@
             <span style="white-space:nowrap">🟢 <span id="stat-cheap-pct">--</span> routed to cheap models</span>
             <span style="white-space:nowrap">💰 <span id="stat-saved-today">--</span> saved today</span>
             <span style="white-space:nowrap">⚡ <span id="stat-total-routed">--</span> messages routed</span>
-            <span style="white-space:nowrap">🧠 Sonnet only for strategy & security</span>
+
         </div>
 
 
@@ -1819,31 +1819,44 @@ loadContracts();
                 const models = rankResult.models || [];
                 
                 // Calculate cheap model percentage
-                // Cheap models: haiku, gpt-4o-mini, and other sub-$0.01 models
-                const cheapModels = ['haiku', 'mini', 'small'];
-                const expensiveModels = ['sonnet', 'opus', 'gpt-4'];
+                // Cheap models: haiku, gpt-4o-mini, deepseek-flash, and other sub-$0.10 models
+                const cheapModels = ['haiku', 'mini', 'small', 'flash', 'deepseek'];
+                const sonnetModels = ['sonnet', 'opus', 'gpt-4o', 'gpt-4'];
                 
-                let cheapCount = 0;
-                let expensiveCount = 0;
-                models.forEach(m => {
+                // Deduplicate by unique model name for percentage calculation
+                const uniqueModels = [...new Map(models.map(m => [m.model, m])).values()];
+                let cheapUniqueCount = 0;
+                let sonnetUniqueCount = 0;
+                uniqueModels.forEach(m => {
                     const modelName = m.model.toLowerCase();
-                    if (cheapModels.some(c => modelName.includes(c))) cheapCount++;
-                    if (expensiveModels.some(e => modelName.includes(e))) expensiveCount++;
+                    if (cheapModels.some(c => modelName.includes(c))) cheapUniqueCount++;
+                    else if (sonnetModels.some(e => modelName.includes(e))) sonnetUniqueCount++;
                 });
                 
-                const total = models.length;
-                const cheapPct = total > 0 ? Math.round((cheapCount / total) * 100) : 78;
+                const totalUnique = uniqueModels.length;
+                const cheapPct = totalUnique > 0 ? Math.round((cheapUniqueCount / totalUnique) * 100) : 78;
                 
-                // Calculate estimated savings: average task cost difference
-                const avgCheapCost = models
-                    .filter(m => cheapModels.some(c => m.model.toLowerCase().includes(c)))
-                    .reduce((sum, m) => sum + (m.avg_cost_cents || 0.05), 0) / Math.max(1, cheapCount);
+                // Calculate cost_per_success based avg cost reduction vs Sonnet
+                // Use cost_per_success (cost/success_rate) for fair comparison
+                const cheapRows = models.filter(m => cheapModels.some(c => m.model.toLowerCase().includes(c)) && m.cost_per_success);
+                const sonnetRows = models.filter(m => sonnetModels.some(e => m.model.toLowerCase().includes(e)) && m.cost_per_success);
                 
-                const avgExpensiveCost = models
-                    .filter(m => expensiveModels.some(e => m.model.toLowerCase().includes(e)))
-                    .reduce((sum, m) => sum + (m.avg_cost_cents || 0.50), 0) / Math.max(1, expensiveCount);
+                let avgCostReductionPct = null;
+                if (cheapRows.length > 0 && sonnetRows.length > 0) {
+                    const avgCheapCPS = cheapRows.reduce((s, m) => s + m.cost_per_success, 0) / cheapRows.length;
+                    const avgSonnetCPS = sonnetRows.reduce((s, m) => s + m.cost_per_success, 0) / sonnetRows.length;
+                    if (avgSonnetCPS > 0) {
+                        avgCostReductionPct = Math.round((1 - avgCheapCPS / avgSonnetCPS) * 100);
+                    }
+                }
                 
                 // Estimate daily savings based on total routed tasks
+                const avgCheapCost = cheapRows.length > 0
+                    ? cheapRows.reduce((s, m) => s + (m.avg_cost_cents || 0), 0) / cheapRows.length
+                    : 0.04;
+                const avgExpensiveCost = sonnetRows.length > 0
+                    ? sonnetRows.reduce((s, m) => s + (m.avg_cost_cents || 0), 0) / sonnetRows.length
+                    : 0.60;
                 const totalRouted = gateStats.total_checks || 9;
                 const costPerTaskIfSonnet = Math.max(avgExpensiveCost, 0.20);
                 const costPerTaskActual = (cheapPct / 100) * avgCheapCost + ((100 - cheapPct) / 100) * costPerTaskIfSonnet;
@@ -1854,6 +1867,16 @@ loadContracts();
                 document.getElementById('stat-cheap-pct').textContent = cheapPct + '%';
                 document.getElementById('stat-saved-today').textContent = '$' + totalSavedToday;
                 document.getElementById('stat-total-routed').textContent = totalRouted;
+                
+                // Update avg cost reduction hero card
+                const costReductionEl = document.getElementById('cost-reduction');
+                if (costReductionEl) {
+                    if (avgCostReductionPct !== null && avgCostReductionPct > 0) {
+                        costReductionEl.textContent = avgCostReductionPct + '%';
+                    } else {
+                        costReductionEl.textContent = 'Collecting…';
+                    }
+                }
                 
             } catch(e) {
                 console.error('loadRoutingStats error:', e);

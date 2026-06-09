@@ -316,7 +316,7 @@ class TaskRegisterRequest(BaseModel):
 # ── Public endpoints ───────────────────────────────────────────────────────────
 @app.get("/")
 async def dashboard():
-    for path in ["/app/dashboard.html", "/app/index.html"]:
+    for path in ["/app/dashboard.html", "/app/index.html", "/root/.openclaw/workspace/AgentOptima/index.html"]:
         if os.path.exists(path):
             return FileResponse(path, media_type="text/html")
     return JSONResponse({"error": "Dashboard not found"}, status_code=500)
