@@ -1812,7 +1812,7 @@ loadContracts();
         async function loadRoutingStats() {
             try {
                 // Try to fetch gate stats
-                const gateStats = await fetchAPI('/gate/stats');
+                const gateStats = await fetchAPI('/routing/stats?since_hours=24');
                 
                 // Try to fetch rankings for model usage data
                 const rankResult = await fetchRankings();
@@ -1857,14 +1857,21 @@ loadContracts();
                 const avgExpensiveCost = sonnetRows.length > 0
                     ? sonnetRows.reduce((s, m) => s + (m.avg_cost_cents || 0), 0) / sonnetRows.length
                     : 0.60;
-                const totalRouted = gateStats.total_checks || 9;
-                const costPerTaskIfSonnet = Math.max(avgExpensiveCost, 0.20);
-                const costPerTaskActual = (cheapPct / 100) * avgCheapCost + ((100 - cheapPct) / 100) * costPerTaskIfSonnet;
-                const savingsPerTask = Math.max(0, costPerTaskIfSonnet - costPerTaskActual);
-                const totalSavedToday = (totalRouted * savingsPerTask / 100).toFixed(2);
-                
+                const totalRouted = gateStats.total_routed || 0;
+                // Prefer real saved figure from routing/stats if available, else estimate
+                const totalSavedToday = gateStats.estimated_saved_dollars != null
+                    ? gateStats.estimated_saved_dollars.toFixed(2)
+                    : (() => {
+                        const costPerTaskIfSonnet = Math.max(avgExpensiveCost, 0.20);
+                        const costPerTaskActual = (cheapPct / 100) * avgCheapCost + ((100 - cheapPct) / 100) * costPerTaskIfSonnet;
+                        const savingsPerTask = Math.max(0, costPerTaskIfSonnet - costPerTaskActual);
+                        return (totalRouted * savingsPerTask / 100).toFixed(2);
+                    })();
+                // cheap_pct from routing/stats is more accurate than model-pool ratio
+                const displayCheapPct = gateStats.cheap_pct != null ? gateStats.cheap_pct : cheapPct;
+
                 // Update the stats bar
-                document.getElementById('stat-cheap-pct').textContent = cheapPct + '%';
+                document.getElementById('stat-cheap-pct').textContent = displayCheapPct + '%';
                 document.getElementById('stat-saved-today').textContent = '$' + totalSavedToday;
                 document.getElementById('stat-total-routed').textContent = totalRouted;
                 

@@ -2252,6 +2252,117 @@ async def gate_stats():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# ROUTING STATS — platform-wide, multi-agent
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/routing/stats")
+async def routing_stats(agent_name: Optional[str] = None, since_hours: int = 24):
+    """
+    Platform-wide routing stats from the tasks table.
+    Optionally filter by agent_name for per-agent views.
+    Used by dashboard for accurate 'messages routed', 'cheap model %', 'saved today'.
+    """
+    try:
+        with get_db() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                agent_filter = "AND agent_name = %s" if agent_name else ""
+                params_base = [agent_name] if agent_name else []
+
+                # Total routed (exclude classify/noise, only real task types)
+                cur.execute(f"""
+                    SELECT COUNT(*) AS total
+                    FROM tasks
+                    WHERE task_type NOT IN ('classify')
+                    AND logged_at >= NOW() - INTERVAL '{since_hours} hours'
+                    {agent_filter}
+                """, params_base)
+                total_routed = cur.fetchone()["total"]
+
+                # Cheap vs expensive model split
+                cheap_models = ['haiku', 'mistral', 'gpt-4o-mini', 'gemini', 'gemma',
+                                'deepseek', 'llama', 'phi', 'qwen', 'command-r', 'o3-mini']
+                expensive_models = ['sonnet', 'opus', 'gpt-4o', 'gpt-5']
+
+                cheap_conditions = " OR ".join([f"model ILIKE '%{m}%'" for m in cheap_models])
+                expensive_conditions = " OR ".join([f"model ILIKE '%{m}%'" for m in expensive_models])
+
+                cur.execute(f"""
+                    SELECT COUNT(*) AS cheap_count
+                    FROM tasks
+                    WHERE ({cheap_conditions})
+                    AND task_type NOT IN ('classify')
+                    AND logged_at >= NOW() - INTERVAL '{since_hours} hours'
+                    {agent_filter}
+                """, params_base)
+                cheap_count = cur.fetchone()["cheap_count"]
+
+                # Real cost saved today (only entries with actual cost_cents)
+                cur.execute(f"""
+                    SELECT
+                        COALESCE(SUM(CASE WHEN ({expensive_conditions}) THEN cost_cents ELSE 0 END), 0) AS expensive_cost,
+                        COALESCE(SUM(CASE WHEN ({cheap_conditions}) THEN cost_cents ELSE 0 END), 0) AS cheap_cost,
+                        COUNT(CASE WHEN cost_cents IS NOT NULL THEN 1 END) AS tasks_with_cost,
+                        COALESCE(SUM(cost_cents), 0) AS total_cost_cents
+                    FROM tasks
+                    WHERE task_type NOT IN ('classify')
+                    AND logged_at >= NOW() - INTERVAL '{since_hours} hours'
+                    {agent_filter}
+                """, params_base)
+                cost_row = cur.fetchone()
+
+                # Per-agent breakdown (for platform view)
+                cur.execute(f"""
+                    SELECT agent_name, COUNT(*) as tasks,
+                           COALESCE(SUM(cost_cents), 0) as total_cost
+                    FROM tasks
+                    WHERE task_type NOT IN ('classify')
+                    AND logged_at >= NOW() - INTERVAL '{since_hours} hours'
+                    GROUP BY agent_name
+                    ORDER BY tasks DESC
+                    LIMIT 20
+                """) 
+                by_agent = cur.fetchall()
+
+                # Task type breakdown
+                cur.execute(f"""
+                    SELECT task_type, COUNT(*) as count
+                    FROM tasks
+                    WHERE task_type NOT IN ('classify')
+                    AND logged_at >= NOW() - INTERVAL '{since_hours} hours'
+                    {agent_filter}
+                    GROUP BY task_type
+                    ORDER BY count DESC
+                """, params_base)
+                by_type = cur.fetchall()
+
+        cheap_pct = round(cheap_count / total_routed * 100) if total_routed > 0 else 0
+        total_cost_dollars = round(float(cost_row["total_cost_cents"]) / 100, 4)
+        tasks_with_cost = cost_row["tasks_with_cost"]
+
+        # Estimate saved: tasks that went cheap instead of Sonnet
+        # Use avg Sonnet cost ($0.30/task) vs actual cheap cost
+        SONNET_AVG_CENTS = 30.0
+        actual_cheap_avg = (float(cost_row["cheap_cost"]) / cheap_count) if cheap_count > 0 else 0
+        estimated_saved_cents = cheap_count * max(0, SONNET_AVG_CENTS - actual_cheap_avg)
+        estimated_saved_dollars = round(estimated_saved_cents / 100, 2)
+
+        return {
+            "total_routed":          total_routed,
+            "cheap_count":           cheap_count,
+            "cheap_pct":             cheap_pct,
+            "total_cost_cents":      round(float(cost_row["total_cost_cents"]), 4),
+            "total_cost_dollars":    total_cost_dollars,
+            "tasks_with_real_cost":  tasks_with_cost,
+            "estimated_saved_dollars": estimated_saved_dollars,
+            "since_hours":           since_hours,
+            "by_agent":              [dict(r) for r in by_agent],
+            "by_type":               [dict(r) for r in by_type],
+        }
+    except Exception as e:
+        return {"total_routed": 0, "cheap_pct": 0, "estimated_saved_dollars": 0.0, "error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # ORCHESTRATOR RECALIBRATION — NEW ENDPOINTS v1.0.5
 # ══════════════════════════════════════════════════════════════════════════════
 
