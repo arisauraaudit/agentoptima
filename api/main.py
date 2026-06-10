@@ -2310,17 +2310,17 @@ async def routing_stats(agent_name: Optional[str] = None, since_hours: int = 24)
                 """, params_base)
                 cost_row = cur.fetchone()
 
-                # Per-agent breakdown (for platform view)
-                cur.execute(f"""
+                # Per-agent breakdown (for platform view — always global, no agent filter)
+                cur.execute("""
                     SELECT agent_name, COUNT(*) as tasks,
                            COALESCE(SUM(cost_cents), 0) as total_cost
                     FROM tasks
                     WHERE task_type NOT IN ('classify')
-                    AND logged_at >= NOW() - INTERVAL '{since_hours} hours'
+                    AND logged_at >= NOW() - (%s * INTERVAL '1 hour')
                     GROUP BY agent_name
                     ORDER BY tasks DESC
                     LIMIT 20
-                """) 
+                """, [since_hours])
                 by_agent = cur.fetchall()
 
                 # Task type breakdown
