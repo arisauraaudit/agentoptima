@@ -73,7 +73,7 @@ def validate_api_key(raw_key: str) -> dict:
         conn = _get_db()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, user_label, budget_limit_cents, spent_cents, enabled FROM api_keys WHERE key_hash = %s",
+                "SELECT id, user_label, budget_limit_cents, spent_cents, active FROM api_keys WHERE key_hash = %s",
                 (key_hash,)
             )
             row = cur.fetchone()
@@ -82,7 +82,8 @@ def validate_api_key(raw_key: str) -> dict:
             key_id, label, budget, spent, enabled = row
             if not enabled:
                 raise HTTPException(status_code=403, detail="API key disabled. Check your dashboard.")
-            return {"id": key_id, "label": label, "budget": budget, "spent": spent}
+            # budget/spent may be None on old keys — safe defaults
+            return {"id": str(key_id), "label": label or "default", "budget": budget or 500, "spent": spent or 0}
     except HTTPException:
         raise
     except Exception as e:

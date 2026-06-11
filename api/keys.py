@@ -39,13 +39,13 @@ def _validate_key(authorization: str) -> dict:
     conn = _get_db()
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT id, user_label, budget_limit_cents, spent_cents, enabled, plan FROM api_keys WHERE key_hash = %s",
+            "SELECT id, user_label, budget_limit_cents, spent_cents, active, plan FROM api_keys WHERE key_hash = %s",
             (key_hash,)
         )
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=401, detail="Key not found")
-        return {"id": row[0], "label": row[1], "budget": row[2], "spent": row[3], "enabled": row[4], "plan": row[5]}
+        return {"id": str(row[0]), "label": row[1] or 'default', "budget": row[2] or 500, "spent": row[3] or 0, "enabled": row[4], "plan": row[5] or 'free'}
 
 
 @router.post("/api/v1/keys/create")
@@ -61,9 +61,9 @@ def create_key(req: CreateKeyRequest):
         conn = _get_db()
         with conn.cursor() as cur:
             cur.execute(
-                """INSERT INTO api_keys (key_hash, user_label, user_email, budget_limit_cents)
-                   VALUES (%s, %s, %s, %s) RETURNING id""",
-                (key_hash, req.label, req.email, req.budget_limit_cents)
+                """INSERT INTO api_keys (key_hash, agent_name, user_label, user_email, budget_limit_cents)
+                   VALUES (%s, %s, %s, %s, %s) RETURNING id""",
+                (key_hash, req.label, req.label, req.email, req.budget_limit_cents)
             )
             key_id = cur.fetchone()[0]
             conn.commit()

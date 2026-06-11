@@ -221,7 +221,7 @@ def init_db():
                 cur.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free'")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS response_cache (
-                        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        id           SERIAL PRIMARY KEY,
                         cache_key    TEXT UNIQUE NOT NULL,
                         request_hash TEXT NOT NULL,
                         response_json JSONB NOT NULL,
@@ -236,7 +236,7 @@ def init_db():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_cache_key ON response_cache(cache_key)")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS savings_log (
-                        id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        id                   SERIAL PRIMARY KEY,
                         api_key_id           TEXT,
                         date                 DATE NOT NULL,
                         cache_hits           INTEGER DEFAULT 0,
