@@ -211,8 +211,45 @@ def init_db():
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_goal_id ON tasks(goal_id)")
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_tasks_task_id ON tasks(task_id)")
+                # ── Pivot Phase 1: proxy gateway tables (2026-06-11) ──────────
+                # Extend api_keys with proxy fields (backward-compatible ALTERs)
+                cur.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS user_label TEXT")
+                cur.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS user_email TEXT")
+                cur.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS budget_limit_cents INTEGER DEFAULT 500")
+                cur.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS spent_cents REAL DEFAULT 0")
+                cur.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ")
+                cur.execute("ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free'")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS response_cache (
+                        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        cache_key    TEXT UNIQUE NOT NULL,
+                        request_hash TEXT NOT NULL,
+                        response_json JSONB NOT NULL,
+                        model_used   TEXT NOT NULL,
+                        cost_cents   REAL NOT NULL,
+                        hit_count    INTEGER DEFAULT 0,
+                        created_at   TIMESTAMPTZ DEFAULT NOW(),
+                        expires_at   TIMESTAMPTZ,
+                        cache_type   TEXT DEFAULT 'exact'
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_cache_key ON response_cache(cache_key)")
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS savings_log (
+                        id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        api_key_id           TEXT,
+                        date                 DATE NOT NULL,
+                        cache_hits           INTEGER DEFAULT 0,
+                        tokens_saved         INTEGER DEFAULT 0,
+                        cost_saved_cents     REAL DEFAULT 0,
+                        routing_saved_cents  REAL DEFAULT 0,
+                        actual_cost_cents    REAL DEFAULT 0,
+                        UNIQUE (api_key_id, date)
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_savings_key_date ON savings_log(api_key_id, date)")
             conn.commit()
-        logger.info("PostgreSQL ready (v1.1.10 + contracts)")
+        logger.info("PostgreSQL ready (v1.1.10 + proxy gateway tables)")
     except Exception as e:
         logger.warning(f"DB init warning: {e}")
 
@@ -270,6 +307,48 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             )
 
 app.add_middleware(RequestLoggingMiddleware)
+
+# ── Proxy Gateway Routers (Phase 1 Pivot) ────────────────────────────────────
+from api.proxy import router as proxy_router
+from api.keys import router as keys_router
+app.include_router(proxy_router)
+app.include_router(keys_router)
+
+# ── Internal helpers for proxy.py ─────────────────────────────────────────────
+def classify_task_internal(text: str) -> str:
+    """Classify task text → task_type string. Used by proxy auto-routing."""
+    import sys
+    sys.path.insert(0, '/app')
+    try:
+        from integration.task_classifier import classify_task
+        result = classify_task(text)
+        return result.get("category", "general")
+    except Exception:
+        return "general"
+
+def get_recommendation_internal(task_type: str) -> str:
+    """Get best model for task_type from AO data. Used by proxy auto-routing."""
+    try:
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT model, success_rate, avg_cost_cents
+                FROM   model_benchmarks
+                WHERE  task_type = %s AND success_rate >= 0.7
+                ORDER  BY (avg_cost_cents / NULLIF(success_rate, 0)) ASC NULLS LAST
+                LIMIT  1
+                """,
+                (task_type,)
+            )
+            row = cur.fetchone()
+            if row:
+                return row[0]
+    except Exception:
+        pass
+    # Fallback waterfall
+    from api.proxy import FALLBACK_MODEL
+    return FALLBACK_MODEL
 
 # ── Models ─────────────────────────────────────────────────────────────────────
 class RegisterRequest(BaseModel):
