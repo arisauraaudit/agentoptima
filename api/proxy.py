@@ -219,9 +219,12 @@ async def call_openrouter(model: str, messages: list[Message], max_tokens: int, 
     cost_cents = 0.0
     if "usage" in data:
         usage = data["usage"]
-        # OpenRouter returns cost in dollars in x-total-cost header or usage.total_cost
-        total_cost_usd = usage.get("total_cost", 0) or 0
+        # OpenRouter returns cost in dollars via usage.cost or usage.total_cost
+        total_cost_usd = usage.get("cost", 0) or usage.get("total_cost", 0) or 0
         cost_cents = float(total_cost_usd) * 100
+    # Ensure minimum non-zero cost for cacheable responses (avoids skipping cache store)
+    if cost_cents == 0.0 and data.get("choices"):
+        cost_cents = 0.0001  # sentinel: unknown but non-zero
 
     return data, cost_cents, duration_s
 
