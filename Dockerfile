@@ -9,8 +9,11 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all source files (including dashboard.html)
+# Copy all source files
 COPY . .
+
+# Copy Next.js static export to /app/frontend
+RUN if [ -d dashboard/out ]; then cp -r dashboard/out /app/frontend; fi
 
 # Expose port (Railway will inject PORT env var)
 EXPOSE 8000

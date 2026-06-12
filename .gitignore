@@ -6,6 +6,7 @@ logs/
 dashboard/.next/
 dashboard/node_modules/
 dashboard/package-lock.json
+# Keep dashboard/out/ — needed for Docker build
 api.log
 *.pyc
 **/__pycache__/

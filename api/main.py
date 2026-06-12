@@ -9,6 +9,7 @@
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
 import os, hashlib, secrets, re, json, psycopg2, psycopg2.extras, requests as _requests
@@ -392,13 +393,58 @@ class TaskRegisterRequest(BaseModel):
     goal_id: Optional[str]     = None
     agent_name: Optional[str]  = "aris"
 
-# ── Public endpoints ───────────────────────────────────────────────────────────
-@app.get("/")
-async def dashboard():
-    for path in ["/app/dashboard.html", "/app/index.html", "/root/.openclaw/workspace/AgentOptima/index.html"]:
+# ── Static frontend (Next.js export) ─────────────────────────────────────────
+_FRONTEND_DIRS = [
+    "/app/frontend",
+    "/root/.openclaw/workspace/AgentOptima/dashboard/out",
+]
+
+def _frontend_dir() -> str | None:
+    for d in _FRONTEND_DIRS:
+        if os.path.isdir(d):
+            return d
+    return None
+
+_fe = _frontend_dir()
+if _fe:
+    app.mount("/_next", StaticFiles(directory=os.path.join(_fe, "_next")), name="next-assets")
+
+def _serve_frontend_page(page: str) -> FileResponse:
+    fe = _frontend_dir()
+    if fe:
+        # trailingSlash export: /onboarding/index.html
+        for candidate in [
+            os.path.join(fe, page, "index.html"),
+            os.path.join(fe, page + ".html"),
+            os.path.join(fe, "index.html"),
+        ]:
+            if os.path.exists(candidate):
+                return FileResponse(candidate, media_type="text/html")
+    # Fallback to legacy single-file index
+    for path in ["/app/index.html", "/root/.openclaw/workspace/AgentOptima/index.html"]:
         if os.path.exists(path):
             return FileResponse(path, media_type="text/html")
-    return JSONResponse({"error": "Dashboard not found"}, status_code=500)
+    return JSONResponse({"error": "Frontend not found"}, status_code=500)
+
+# ── Public endpoints ───────────────────────────────────────────────────────────
+@app.get("/")
+async def root_page():
+    return _serve_frontend_page("")
+
+@app.get("/onboarding")
+@app.get("/onboarding/")
+async def onboarding_page():
+    return _serve_frontend_page("onboarding")
+
+@app.get("/dashboard")
+@app.get("/dashboard/")
+async def dashboard_page():
+    return _serve_frontend_page("dashboard")
+
+@app.get("/docs")
+@app.get("/docs/")
+async def docs_page():
+    return _serve_frontend_page("docs")
 
 @app.post("/api/v1/register")
 async def register_agent(request: RegisterRequest):
