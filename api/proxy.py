@@ -116,25 +116,31 @@ def check_cache(messages: list[Message]) -> Optional[dict]:
         cache_key  = hashlib.sha256(payload.encode()).hexdigest()
 
         conn = _get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                """SELECT response_json, model_used, cost_cents, id
-                   FROM response_cache
-                   WHERE cache_key = %s
-                     AND (expires_at IS NULL OR expires_at > NOW())
-                   LIMIT 1""",
-                (cache_key,)
-            )
-            row = cur.fetchone()
-            if row:
-                response_json, model_used, cost_cents, cache_id = row
-                # Increment hit count
-                cur.execute("UPDATE response_cache SET hit_count = hit_count + 1 WHERE id = %s", (cache_id,))
-                conn.commit()
-                logger.info(f"Cache HIT — key={cache_key[:12]}… model={model_used} saved={cost_cents:.4f}¢")
-                return {"response": response_json, "model": model_used, "cost_cents": 0, "cache_hit": True, "saved_cents": cost_cents}
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """SELECT response_json, model_used, cost_cents, id
+                       FROM response_cache
+                       WHERE cache_key = %s
+                         AND (expires_at IS NULL OR expires_at > NOW())
+                       LIMIT 1""",
+                    (cache_key,)
+                )
+                row = cur.fetchone()
+                if row:
+                    response_json, model_used, cost_cents, cache_id = row
+                    cur.execute("UPDATE response_cache SET hit_count = hit_count + 1 WHERE id = %s", (cache_id,))
+                    conn.commit()
+                    logger.info(f"Cache HIT — key={cache_key[:12]}… model={model_used} saved={cost_cents:.6f}¢")
+                    # Add _ao metadata to cached response
+                    resp = response_json if isinstance(response_json, dict) else json.loads(response_json)
+                    resp["_ao"] = {"model_used": model_used, "task_type": "cached", "cost_cents": 0,
+                                   "saved_cents": round(cost_cents, 6), "cache_hit": True, "duration_s": 0.0}
+                    return {"response": resp, "model": model_used, "cost_cents": 0, "cache_hit": True, "saved_cents": cost_cents}
+        finally:
+            conn.close()
     except Exception as e:
-        logger.debug(f"Cache check skipped: {e}")
+        logger.warning(f"Cache check failed: {e}")
     return None
 
 def store_cache(messages: list[Message], response_json: dict, model: str, cost_cents: float) -> None:
@@ -144,17 +150,23 @@ def store_cache(messages: list[Message], response_json: dict, model: str, cost_c
         payload    = json.dumps(normalized, sort_keys=True)
         cache_key  = hashlib.sha256(payload.encode()).hexdigest()
 
+        # Strip _ao metadata before storing — keep cached response clean
+        clean_response = {k: v for k, v in response_json.items() if k != '_ao'}
         conn = _get_db()
-        with conn.cursor() as cur:
-            cur.execute(
-                """INSERT INTO response_cache (cache_key, request_hash, response_json, model_used, cost_cents, cache_type)
-                   VALUES (%s, %s, %s, %s, %s, 'exact')
-                   ON CONFLICT (cache_key) DO NOTHING""",
-                (cache_key, cache_key, json.dumps(response_json), model, cost_cents)
-            )
-            conn.commit()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO response_cache (cache_key, request_hash, response_json, model_used, cost_cents, cache_type)
+                       VALUES (%s, %s, %s, %s, %s, 'exact')
+                       ON CONFLICT (cache_key) DO NOTHING""",
+                    (cache_key, cache_key, json.dumps(clean_response), model, cost_cents)
+                )
+                conn.commit()
+                logger.info(f"Cache STORE — key={cache_key[:12]}… model={model} cost={cost_cents:.6f}¢")
+        finally:
+            conn.close()
     except Exception as e:
-        logger.debug(f"Cache store skipped: {e}")
+        logger.warning(f"Cache store failed: {e}")
 
 # ── Model Selection ────────────────────────────────────────────────────────────
 
