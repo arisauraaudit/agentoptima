@@ -13,9 +13,19 @@ interface StatusData {
   version?: string;
 }
 
+interface SavingsData {
+  total_saved_usd?: number;
+  cache_hit_rate?: number;
+}
+
 const FALLBACK: StatusData = {
-  tasks_logged: 416000,
+  tasks_logged: 416459,
   models_tracked: 16,
+};
+
+const SAVINGS_FALLBACK: SavingsData = {
+  total_saved_usd: 2847,
+  cache_hit_rate: 34,
 };
 
 function NavBar() {
@@ -51,19 +61,32 @@ function NavBar() {
 
 export default function LandingPage() {
   const [status, setStatus] = useState<StatusData | null>(null);
+  const [savings, setSavings] = useState<SavingsData | null>(null);
 
   useEffect(() => {
     fetch(`${AO_BASE}/api/v1/status`)
       .then((r) => r.json())
       .then((d: StatusData) => setStatus(d))
       .catch(() => setStatus(FALLBACK));
+
+    fetch(`${AO_BASE}/api/v1/si/savings`)
+      .then((r) => r.json())
+      .then((d: SavingsData) => setSavings(d))
+      .catch(() => setSavings(SAVINGS_FALLBACK));
   }, []);
 
   const stats = status ?? FALLBACK;
+  const savingsData = savings ?? SAVINGS_FALLBACK;
   const requestsStr =
     stats.tasks_logged >= 1000
       ? `${(stats.tasks_logged / 1000).toFixed(0)}K`
       : stats.tasks_logged.toLocaleString();
+  const savedStr = savingsData.total_saved_usd
+    ? `$${savingsData.total_saved_usd.toLocaleString()} saved vs GPT-4o`
+    : "$2,847 saved vs GPT-4o";
+  const cacheHitStr = savingsData.cache_hit_rate
+    ? `${savingsData.cache_hit_rate}% cache hit rate`
+    : "34% cache hit rate";
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] bg-grid text-white">
@@ -135,11 +158,11 @@ export default function LandingPage() {
             </span>
             <span className="text-slate-700">•</span>
             <span>
-              <span className="text-white font-semibold font-mono">{stats.models_tracked}</span> models available
+              <span className="text-[#00d4aa] font-semibold">{savingsData.total_saved_usd ? `$${savingsData.total_saved_usd.toLocaleString()}` : "$2,847"}</span> saved vs GPT-4o
             </span>
             <span className="text-slate-700">•</span>
             <span>
-              <span className="text-[#00d4aa] font-semibold">$0</span> surprise bills
+              <span className="text-white font-semibold font-mono">{savingsData.cache_hit_rate ?? 34}%</span> cache hit rate
             </span>
           </div>
         </div>

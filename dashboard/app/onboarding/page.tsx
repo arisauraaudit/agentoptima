@@ -146,33 +146,24 @@ function Step1({
 }: {
   onNext: (key: GeneratedKey) => void;
 }) {
-  const [email, setEmail] = useState("");
   const [label, setLabel] = useState("my-app");
-  const [budgetPreset, setBudgetPreset] = useState<"500" | "2000" | "5000" | "custom">("500");
-  const [customBudget, setCustomBudget] = useState("10");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [generatedKey, setGeneratedKey] = useState<GeneratedKey | null>(null);
 
-  const budgetCents = budgetPreset === "custom"
-    ? Math.round(parseFloat(customBudget || "0") * 100)
-    : parseInt(budgetPreset);
-
   const handleCreate = async () => {
-    if (!label.trim()) { setError("Key label is required."); return; }
+    if (!label.trim()) { setError("Give your key a name first."); return; }
     setLoading(true);
     setError("");
     try {
-      const body: Record<string, unknown> = { label: label.trim(), budget_limit_cents: budgetCents };
-      if (email.trim()) body.email = email.trim();
       const r = await fetch(`${AO_BASE}/api/v1/keys/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ label: label.trim() }),
       });
       const d = await r.json();
       if (d.key) {
-        setGeneratedKey({ key: d.key, label: label.trim(), budget_limit_cents: budgetCents });
+        setGeneratedKey({ key: d.key, label: label.trim(), budget_limit_cents: d.budget_limit_cents ?? 0 });
       } else {
         setError(d.detail || "Failed to create key. Try again.");
       }
@@ -191,22 +182,21 @@ function Step1({
         className="space-y-5"
       >
         <div className="flex items-center gap-2 text-[#00d4aa] text-sm font-medium">
-          <Check size={16} /> Key created successfully
+          <Check size={16} /> Key created — copy it below
         </div>
 
-        <div className="card p-4">
-          <div className="text-xs text-slate-400 mb-2">Your API key</div>
-          <div className="flex items-center gap-2 bg-[rgba(0,212,170,0.04)] border border-[rgba(0,212,170,0.2)] rounded-lg px-4 py-3">
-            <code className="text-[#00d4aa] text-sm flex-1 break-all font-mono">{generatedKey.key}</code>
-            <CopyButton text={generatedKey.key} size={16} />
+        {/* Prominent key copy box */}
+        <div className="rounded-xl border-2 border-[rgba(0,212,170,0.4)] bg-[rgba(0,212,170,0.06)] p-5">
+          <div className="text-xs text-[#00d4aa] font-semibold uppercase tracking-wider mb-3">Your API key</div>
+          <div className="flex items-center gap-3 bg-[#0a0a0f] border border-[rgba(0,212,170,0.2)] rounded-lg px-4 py-3.5">
+            <code className="text-[#00d4aa] text-base flex-1 break-all font-mono tracking-wide">{generatedKey.key}</code>
+            <CopyButton text={generatedKey.key} size={18} />
           </div>
-        </div>
-
-        <div className="flex items-start gap-3 p-4 bg-amber-500/8 border border-amber-500/20 rounded-lg">
-          <AlertCircle size={15} className="text-amber-400 flex-shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-300 leading-relaxed">
-            <span className="font-semibold">Save this key — we show it once.</span>{" "}
-            Copy it somewhere safe before continuing.
+          <div className="flex items-start gap-2 mt-3">
+            <AlertCircle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-300 leading-relaxed">
+              <span className="font-semibold">Save this now — we show it once.</span> Copy it to a safe place before continuing.
+            </p>
           </div>
         </div>
 
@@ -228,61 +218,17 @@ function Step1({
       className="space-y-5"
     >
       <div>
-        <label className="block text-xs text-slate-400 mb-1.5">
-          Email <span className="text-slate-600">(optional — for key recovery)</span>
-        </label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(0,212,170,0.2)] focus:border-[rgba(0,212,170,0.4)] rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition-colors"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs text-slate-400 mb-1.5">
-          Key label <span className="text-slate-600">(what app is this for?)</span>
+        <label className="block text-sm text-slate-300 font-medium mb-2">
+          Name this key
         </label>
         <input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
-          placeholder="my-app"
-          className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(0,212,170,0.2)] focus:border-[rgba(0,212,170,0.4)] rounded-lg px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none transition-colors"
+          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+          placeholder="e.g. my-app"
+          className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(0,212,170,0.2)] focus:border-[rgba(0,212,170,0.4)] rounded-lg px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none transition-colors"
+          autoFocus
         />
-      </div>
-
-      <div>
-        <label className="block text-xs text-slate-400 mb-2">Monthly budget</label>
-        <div className="flex gap-2 flex-wrap">
-          {(["500", "2000", "5000", "custom"] as const).map((p) => (
-            <button
-              key={p}
-              onClick={() => setBudgetPreset(p)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                budgetPreset === p
-                  ? "bg-[#00d4aa] text-[#0a0a0f]"
-                  : "bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] text-slate-300 hover:border-[rgba(0,212,170,0.3)]"
-              }`}
-            >
-              {p === "custom" ? "Custom" : p === "500" ? "$5" : p === "2000" ? "$20" : "$50"}
-            </button>
-          ))}
-        </div>
-        {budgetPreset === "custom" && (
-          <div className="mt-3 flex items-center gap-2">
-            <span className="text-slate-400 text-sm">$</span>
-            <input
-              type="number"
-              min="1"
-              value={customBudget}
-              onChange={(e) => setCustomBudget(e.target.value)}
-              placeholder="25"
-              className="w-28 bg-[rgba(255,255,255,0.03)] border border-[rgba(0,212,170,0.3)] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00d4aa] transition-colors"
-            />
-            <span className="text-slate-500 text-xs">USD hard limit</span>
-          </div>
-        )}
       </div>
 
       {error && (
@@ -295,7 +241,7 @@ function Step1({
       <button
         onClick={handleCreate}
         disabled={loading}
-        className="button-primary w-full py-3 flex items-center justify-center gap-2"
+        className="button-primary w-full py-3.5 flex items-center justify-center gap-2 text-base"
       >
         {loading ? (
           <>
@@ -303,10 +249,12 @@ function Step1({
           </>
         ) : (
           <>
-            Generate my key <ArrowRight size={16} />
+            Generate my key →
           </>
         )}
       </button>
+
+      <p className="text-center text-xs text-slate-600">Free to start · No credit card required</p>
     </motion.div>
   );
 }
@@ -374,7 +322,7 @@ function Step2({
       className="space-y-5"
     >
       <p className="text-sm text-slate-400">
-        Drop this into your app. Change one line — everything else stays the same.
+        Drop this into your app. Change one line - everything else stays the same.
       </p>
 
       {/* Code tabs */}
@@ -419,7 +367,7 @@ function Step2({
             }`}
           >
             {testing ? (
-              <><Loader2 size={14} className="animate-spin" /> Testing…</>
+              <><Loader2 size={14} className="animate-spin" /> Testing...</>
             ) : testResult ? (
               <><Check size={14} /> Connected</>
             ) : (
@@ -531,7 +479,7 @@ function Step3({
           <span className="text-xs text-slate-400">Your key</span>
           <div className="flex items-center gap-1">
             <code className="text-xs text-[#00d4aa] font-mono">
-              {generatedKey.key.slice(0, 10)}…
+              {generatedKey.key.slice(0, 10)}...
             </code>
             <CopyButton text={generatedKey.key} size={12} />
           </div>

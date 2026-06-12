@@ -275,16 +275,16 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
           className="mb-8"
         >
           <h1 className="text-3xl font-black tracking-tight mb-1">
-            Here&apos;s your savings summary.
+            Here&apos;s what AgentOptima saved you.
           </h1>
           <p className="text-slate-500 text-sm">Last 30 days · auto-refreshes every 30s</p>
         </motion.div>
 
         {/* 4 metric cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <MetricCard
             emoji="💰"
-            label="Total saved"
+            label="Saved this month"
             value={fmtUSD(saved30d)}
             sub="vs GPT-4o baseline"
             accent
@@ -299,19 +299,29 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
           />
           <MetricCard
             emoji="🎯"
-            label="Requests"
+            label="Requests routed"
             value={estimatedRequests > 0 ? estimatedRequests.toLocaleString() : "—"}
             sub="est. this month"
             delay={0.12}
           />
           <MetricCard
-            emoji="📊"
-            label="Budget remaining"
-            value={fmtUSD(budgetRemaining)}
-            sub={`of $${status?.budget_limit_usd?.toFixed(2) ?? "—"} limit`}
+            emoji="🔋"
+            label="Free tier remaining"
+            value={`${Math.max(0, 1000 - estimatedRequests).toLocaleString()} / 1,000`}
+            sub="requests"
             delay={0.18}
           />
         </div>
+
+        {/* Free tier note */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.22 }}
+          className="text-xs text-slate-500 mb-6"
+        >
+          Free tier: 1,000 requests/month. Upgrade for unlimited.
+        </motion.p>
 
         {/* Savings breakdown */}
         <motion.div
