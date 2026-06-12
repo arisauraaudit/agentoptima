@@ -170,26 +170,57 @@ def store_cache(messages: list[Message], response_json: dict, model: str, cost_c
 
 # ── Model Selection ────────────────────────────────────────────────────────────
 
+# Task types that always need quality models regardless of complexity
+SONNET_ALWAYS = {"strategy", "security", "orchestration"}
+
+def detect_complexity(text: str) -> str:
+    """Fast heuristic complexity detection. Returns 'simple' | 'complex'."""
+    words = len(text.split())
+    if words < 15:                          return "simple"
+    if words > 150:                         return "complex"
+    if text.count("\n") > 5:               return "complex"
+    if "```" in text:                       return "complex"
+    complex_signals = ["analyze", "compare", "explain in detail", "step by step",
+                       "comprehensive", "in depth", "architecture", "design", "implement"]
+    text_lower = text.lower()
+    if any(s in text_lower for s in complex_signals): return "complex"
+    return "simple"
+
 def select_model(messages: list[Message], requested_model: str) -> tuple[str, str]:
     """
     Returns (model_id, task_type).
-    - model="auto" → classify + route via AO recommend engine
-    - model=anything_else → passthrough
+    - model="auto"  → classify + complexity check + route via AO data
+    - model=anything_else → passthrough (user knows what they want)
     """
     if requested_model != "auto":
         return requested_model, "passthrough"
 
     # Build task text from last user message
-    user_msgs = [m.content for m in messages if m.role == "user"]
-    task_text = user_msgs[-1] if user_msgs else ""
+    user_msgs  = [m.content for m in messages if m.role == "user"]
+    task_text  = user_msgs[-1] if user_msgs else ""
+    complexity = detect_complexity(task_text)
 
     try:
-        # Use AO classify + recommend (internal call — same process)
         from api.main import classify_task_internal, get_recommendation_internal
-        task_type  = classify_task_internal(task_text)
-        model      = get_recommendation_internal(task_type)
-        logger.info(f"Auto-route: '{task_text[:40]}…' → {task_type} → {model}")
+        task_type = classify_task_internal(task_text)
+
+        # Sonnet-always types: strategy/security/orchestration always get quality model
+        if task_type in SONNET_ALWAYS:
+            model = get_recommendation_internal(task_type)  # AO data picks best quality
+            logger.info(f"Quality-route: '{task_text[:40]}…' → {task_type}[{complexity}] → {model}")
+            return model, task_type
+
+        # Simple tasks: force ultra-cheap regardless of task type
+        if complexity == "simple":
+            model = FALLBACK_MODEL   # gpt-4o-mini — fast, cheap, reliable
+            logger.info(f"Simple-route: '{task_text[:40]}…' → {task_type}[simple] → {model}")
+            return model, task_type
+
+        # Complex tasks: trust AO data for best model
+        model = get_recommendation_internal(task_type)
+        logger.info(f"Complex-route: '{task_text[:40]}…' → {task_type}[complex] → {model}")
         return model, task_type
+
     except Exception as e:
         logger.warning(f"Auto-route failed ({e}), using fallback: {FALLBACK_MODEL}")
         return FALLBACK_MODEL, "general"
@@ -315,6 +346,16 @@ async def chat_completions(
     gpt4o_baseline_cents = 0.5
     routing_saved = max(0, gpt4o_baseline_cents - cost_cents)
     log_savings(key_record["id"], cost_cents, routing_saved, False, model, task_type)
+
+    # 8. Budget alert at 80% threshold (non-blocking)
+    try:
+        new_spent = key_record["spent"] + cost_cents
+        pct = new_spent / key_record["budget"] if key_record["budget"] > 0 else 0
+        if pct >= 0.80 and (new_spent - cost_cents) / key_record["budget"] < 0.80:
+            # Just crossed 80% — log warning (webhook/email in Phase 4)
+            logger.warning(f"Budget alert: key {key_record['id']} at {pct:.0%} of ${key_record['budget']/100:.2f} budget")
+    except Exception:
+        pass
 
     # 8. Add AO metadata to response (non-breaking — extra field)
     response_data["_ao"] = {
