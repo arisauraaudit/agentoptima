@@ -1,2030 +1,480 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgentOptima — AI Routing OS</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-            color: #f1f5f9;
-            min-height: 100vh;
-            line-height: 1.6;
-            padding: 2rem;
-            overflow-x: hidden;
-        }
-        @media (max-width: 640px) {
-            body { padding: 1rem; }
-        }
-        .container { max-width: 1200px; margin: 0 auto; width: 100%; }
-        @media (max-width: 640px) {
-            .container { padding: 0; max-width: 100vw; }
-        }
-        
-        .hero {
-            text-align: center;
-            padding: 3rem 0;
-            animation: fade-in 0.6s ease-in;
-        }
-        @media (max-width: 640px) {
-            .hero { padding: 1.5rem 0; }
-        }
-        h1 {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-            background: linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            font-weight: 800;
-            letter-spacing: -2px;
-        }
-        @media (max-width: 640px) {
-            h1 { font-size: 2.5rem; letter-spacing: -1px; }
-        }
-        .subtitle {
-            font-size: 1.5rem;
-            color: #94a3b8;
-            margin-bottom: 2rem;
-        }
-        @media (max-width: 640px) {
-            .subtitle { font-size: 1.125rem; }
-        }
-        
-        .status-banner {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.75rem;
-            background: rgba(16, 185, 129, 0.15);
-            border: 2px solid #10b981;
-            border-radius: 12px;
-            padding: 1rem 2rem;
-            margin: 2rem auto;
-            animation: pulse 2s infinite;
-        }
-        @media (max-width: 640px) {
-            .status-banner { padding: 0.75rem 1.25rem; margin: 1.5rem auto; font-size: 0.9rem; }
-        }
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            background: #10b981;
-            border-radius: 50%;
-            animation: blink 1.5s infinite;
-        }
-        .status-text { font-weight: 600; color: #10b981; }
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin: 3rem 0;
-        }
-        @media (max-width: 640px) {
-            .metrics-grid {
-                grid-template-columns: 1fr 1fr;
-                gap: 0.75rem;
-                margin: 1.5rem 0;
-            }
-        }
-        .metric-card {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 16px;
-            padding: 2rem;
-            text-align: center;
-            transition: all 0.3s ease;
-            backdrop-filter: blur(10px);
-        }
-        @media (max-width: 640px) {
-            .metric-card { padding: 1.5rem; border-radius: 12px; }
-        }
-        .metric-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(16, 185, 129, 0.5);
-            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.2);
-        }
-        .metric-value {
-            font-size: 3rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #10b981, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.5rem;
-        }
-        @media (max-width: 640px) {
-            .metric-value { font-size: 2rem; }
-        }
-        .metric-label { color: #94a3b8; font-size: 1rem; }
-        @media (max-width: 640px) {
-            .metric-label { font-size: 0.875rem; }
-        }
-        .metric-sub { color: #64748b; font-size: 0.875rem; margin-top: 0.5rem; }
-        @media (max-width: 640px) {
-            .metric-sub { font-size: 0.75rem; }
-        }
-        
-        .section { margin: 4rem 0; }
-        @media (max-width: 640px) {
-            .section { margin: 2rem 0; }
-        }
-        .section-title {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        @media (max-width: 640px) {
-            .section-title { font-size: 1.5rem; margin-bottom: 1.25rem; gap: 0.75rem; }
-        }
-        .section-title::before {
-            content: '';
-            width: 8px;
-            height: 32px;
-            background: linear-gradient(180deg, #10b981, #3b82f6);
-            border-radius: 4px;
-        }
-        @media (max-width: 640px) {
-            .section-title::before { height: 24px; width: 6px; }
-        }
-        
-        .rankings-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 2rem 0;
-            background: rgba(30, 41, 59, 0.8);
-            border-radius: 16px;
-            overflow: hidden;
-            border: 1px solid rgba(148, 163, 184, 0.2);
-        }
-        @media (max-width: 640px) {
-            .rankings-table { margin: 1rem 0; border-radius: 12px; }
-        }
-        .rankings-table th,
-        .rankings-table td {
-            padding: 1.25rem;
-            text-align: left;
-            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-        }
-        .rankings-table th {
-            background: rgba(15, 23, 42, 0.9);
-            font-weight: 600;
-            color: #e2e8f0;
-            font-size: 0.875rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .rankings-table tr:last-child td {
-            border-bottom: none;
-        }
-        .rankings-table tr:hover {
-            background: rgba(16, 185, 129, 0.1);
-        }
-        .rankings-table .model-cell {
-            font-weight: 600;
-            color: #f1f5f9;
-        }
-        .rankings-table .category-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.375rem 0.75rem;
-            background: rgba(59, 130, 246, 0.2);
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            color: #93c5fd;
-            border: 1px solid rgba(59, 130, 246, 0.3);
-        }
-        .rankings-table .rating-stars {
-            color: #fbbf24;
-            margin-right: 0.5rem;
-        }
-        .rankings-table .success-rate { color: #10b981; font-weight: 600; }
-        .rankings-table .cost-badge { 
-            color: #f59e0b; 
-            font-weight: 600;
-        }
-        
-        .hidden-cats { display: none; }
-        .feed-row-mobile { display: none; }
-        @media (max-width: 640px) {
-            .feed-col-agent { display: none; }
-            .feed-row-desktop { display: none !important; }
-            .feed-row-mobile { display: grid !important; }
-        }
-        .chevron.open { transform: rotate(180deg); }
-
-        /* ── Routing Intelligence ── */
-        .efficiency-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1.25rem;
-        }
-        @media (max-width: 640px) {
-            .efficiency-grid { grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-        }
-        .efficiency-card {
-            background: rgba(15,23,42,0.9);
-            border: 1px solid rgba(16,185,129,0.25);
-            border-radius: 14px;
-            padding: 1.25rem;
-            text-align: center;
-            transition: all 0.25s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        .efficiency-card:hover {
-            transform: translateY(-3px);
-            border-color: rgba(16,185,129,0.5);
-            box-shadow: 0 8px 24px rgba(16,185,129,0.15);
-        }
-        .efficiency-card .savings-pct {
-            font-size: 2.4rem;
-            font-weight: 800;
-            background: linear-gradient(135deg, #10b981, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            line-height: 1.1;
-        }
-        @media (max-width: 640px) {
-            .efficiency-card .savings-pct { font-size: 1.8rem; }
-        }
-        .efficiency-card .model-short {
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: #f1f5f9;
-            margin-bottom: 0.35rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .efficiency-card .task-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 20px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            background: rgba(59,130,246,0.2);
-            color: #93c5fd;
-            border: 1px solid rgba(59,130,246,0.25);
-        }
-        .efficiency-card .cost-line {
-            font-size: 0.78rem;
-            color: #64748b;
-            margin-top: 0.3rem;
-        }
-        .routing-recs {
-            background: rgba(15,23,42,0.8);
-            border: 1px solid rgba(148,163,184,0.12);
-            border-radius: 14px;
-            padding: 1.5rem;
-            margin-top: 1.5rem;
-        }
-        .routing-recs ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-        .routing-recs li {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.5rem;
-            color: #94a3b8;
-            font-size: 0.875rem;
-            line-height: 1.5;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(148,163,184,0.06);
-        }
-        .routing-recs li:last-child { border-bottom: none; }
-        .routing-recs li .rec-check { flex-shrink: 0; }
-        /* ── Rankings responsive ── */
-        .rank-summary {
-            display: grid;
-            grid-template-columns: 1fr 5rem 6rem 7rem 5rem 2rem;
-            gap: 0.75rem;
-            align-items: center;
-            padding: 1.1rem 1.5rem;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        @media (max-width: 768px) {
-            .rank-summary {
-                grid-template-columns: 1fr auto auto auto;
-                padding: 0.75rem 1rem;
-                gap: 0.4rem;
-            }
-        }
-        .rank-summary:hover { background: rgba(16,185,129,0.06); }
-        .rank-col-dur, .rank-col-cost, .rank-col-tasks { }
-        .rank-cat-row {
-            display: grid;
-            grid-template-columns: 8rem 4rem 5.5rem 6.5rem 4.5rem 1fr;
-            gap: 0.5rem;
-            align-items: center;
-            padding: 0.55rem 1.5rem;
-            border-top: 1px solid rgba(148,163,184,0.08);
-            font-size: 0.82rem;
-            white-space: nowrap;
-        }
-        @media (max-width: 768px) {
-            .rank-cat-row {
-                grid-template-columns: 6rem 3.5rem 5rem 5.5rem 1fr;
-                padding: 0.5rem 0.75rem;
-                font-size: 0.76rem;
-                gap: 0.35rem;
-            }
-        }
-        .rank-cat-header {
-            display: grid;
-            grid-template-columns: 8rem 4rem 5.5rem 6.5rem 4.5rem 1fr;
-            gap: 0.5rem;
-            padding: 0.45rem 1.5rem;
-            font-size: 0.72rem;
-            color: #475569;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            white-space: nowrap;
-        }
-        @media (max-width: 768px) {
-            .rank-cat-header {
-                grid-template-columns: 6rem 3.5rem 5rem 5.5rem 1fr;
-                padding: 0.4rem 0.75rem;
-                font-size: 0.68rem;
-                gap: 0.35rem;
-            }
-        }
-        .lead-badge { white-space: nowrap; }
-        .rank-model-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .register-panel { margin: 0 auto; }
-        .register-input-group { width: 100%; }
-        .api-key-box { }
-        .setup-code { }
-        @media (max-width: 640px) {
-            .register-panel { padding: 1.5rem !important; border-radius: 12px; }
-            .register-input-group { flex-direction: column !important; }
-            .register-input-group input { width: 100% !important; min-width: auto !important; }
-            .register-input-group button { width: 100% !important; white-space: normal; }
-            .api-key-box { flex-direction: column !important; align-items: flex-start !important; }
-            .setup-code { font-size: 0.7rem !important; padding: 1rem !important; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        }
-
-        @media (max-width: 768px) {
-            .rank-col-dur, .rank-col-tasks { display: none; }
-            .rank-cat-col-tasks { display: none; }
-            .lead-badge { font-size: 0.65rem; padding: 1px 5px; white-space: nowrap; }
-        }
-        @media (max-width: 480px) {
-            .rank-col-dur, .rank-col-cost, .rank-col-tasks { display: none; }
-            .rank-cat-col-dur, .rank-cat-col-cost, .rank-cat-col-tasks { display: none; }
-        }
-        
-        /* ── Mobile text and paragraph overrides ── */
-        @media (max-width: 640px) {
-            p[style*="color:#94a3b8"] { font-size: 0.875rem !important; }
-            p[style*="color:#64748b"] { font-size: 0.8rem !important; }
-            label { font-size: 0.95rem !important; }
-        }
-
-        @media (max-width: 640px) {
-            .hero-description { font-size: 0.95rem !important; line-height: 1.5; }
-            .section-desc { font-size: 0.875rem !important; }
-        }
-        
-        .live-feed {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-        @media (max-width: 640px) {
-            .live-feed {
-                grid-template-columns: 1fr 1fr;
-                gap: 0.75rem;
-                margin-top: 1rem;
-            }
-        }
-        .feed-card {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 12px;
-            padding: 1.25rem;
-            text-align: center;
-            transition: all 0.3s ease;
-            animation: slide-in 0.5s ease-out;
-        }
-        @media (max-width: 640px) {
-            .feed-card { padding: 0.875rem; border-radius: 10px; }
-        }
-        .feed-card:hover {
-            border-color: rgba(16, 185, 129, 0.5);
-            transform: scale(1.02);
-        }
-        .feed-model {
-            font-weight: 600;
-            color: #3b82f6;
-            margin-bottom: 0.5rem;
-        }
-        .feed-type {
-            font-size: 0.875rem;
-            color: #94a3b8;
-        }
-        
-        footer {
-            text-align: center;
-            padding: 4rem 0 2rem;
-            color: #64748b;
-            border-top: 1px solid rgba(148, 163, 184, 0.2);
-            margin-top: 4rem;
-        }
-        @media (max-width: 640px) {
-            footer { padding: 2rem 0 1.5rem; margin-top: 2rem; font-size: 0.875rem; }
-        }
-        footer a {
-            color: #3b82f6;
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        footer a:hover { color: #60a5fa; }
-        
-        .loading {
-            color: #64748b;
-            font-style: italic;
-        }
-        
-        .error-banner {
-            background: rgba(239, 68, 68, 0.15);
-            border: 2px solid #ef4444;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 2rem 0;
-            text-align: center;
-            color: #ef4444;
-        }
-        @media (max-width: 640px) {
-            .error-banner { padding: 1rem; margin: 1rem 0; border-radius: 10px; font-size: 0.9rem; }
-        }
-        
-        @keyframes fade-in {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
-        @keyframes blink {
-            0%, 50%, 100% { opacity: 1; }
-            25%, 75% { opacity: 0.5; }
-        }
-        @keyframes slide-in {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        
-        @media (max-width: 768px) {
-            .rankings-table th,
-            .rankings-table td { padding: 1rem; font-size: 0.875rem; }
-        }
-        @media (max-width: 480px) {
-            #cm-stats-grid { grid-template-columns: 1fr 1fr 1fr !important; gap: 0.5rem !important; }
-            #cm-stats-grid > div { padding: 0.75rem 0.5rem !important; }
-            #cm-stats-grid > div > div:first-child { font-size: 1.2rem !important; }
-        }
-        @media (max-width: 640px) {
-            #cm-feature-grid { grid-template-columns: 1fr !important; }
-        }
-
-        /* ── Onboarding Section ── */
-        .onboarding {
-            margin: 3rem 0;
-            padding: 2.5rem;
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(148, 163, 184, 0.12);
-            border-radius: 20px;
-            position: relative;
-            overflow: hidden;
-        }
-        @media (max-width: 640px) {
-            .onboarding { padding: 1.5rem; margin: 1.5rem 0; border-radius: 14px; }
-        }
-        .onboarding::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6);
-        }
-        .onboarding-title {
-            font-size: 2rem;
-            font-weight: 800;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(90deg, #10b981, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        @media (max-width: 640px) {
-            .onboarding-title { font-size: 1.5rem; }
-        }
-        .onboarding-sub {
-            color: #94a3b8;
-            font-size: 1rem;
-            margin-bottom: 2rem;
-        }
-        @media (max-width: 640px) {
-            .onboarding-sub { font-size: 0.9rem; margin-bottom: 1.5rem; }
-        }
-        .onboarding-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.25rem;
-        }
-        @media (max-width: 768px) {
-            .onboarding-grid { grid-template-columns: 1fr; gap: 1rem; }
-        }
-        .onboarding-step {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.15);
-            border-radius: 16px;
-            padding: 1.75rem;
-            position: relative;
-            transition: all 0.3s ease;
-        }
-        @media (max-width: 640px) {
-            .onboarding-step { padding: 1.25rem; border-radius: 12px; }
-        }
-        .onboarding-step:hover {
-            border-color: rgba(16, 185, 129, 0.4);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.1);
-        }
-        .step-number {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            background: rgba(16, 185, 129, 0.15);
-            border: 1px solid rgba(16, 185, 129, 0.3);
-            border-radius: 50%;
-            font-weight: 800;
-            font-size: 0.9rem;
-            color: #10b981;
-            margin-bottom: 1rem;
-        }
-        .step-title {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #f1f5f9;
-            margin-bottom: 0.6rem;
-        }
-        @media (max-width: 640px) {
-            .step-title { font-size: 1.05rem; }
-        }
-        .step-text {
-            color: #94a3b8;
-            font-size: 0.9rem;
-            line-height: 1.65;
-            margin-bottom: 1rem;
-        }
-        @media (max-width: 640px) {
-            .step-text { font-size: 0.85rem; }
-        }
-        .step-note {
-            color: #64748b;
-            font-size: 0.82rem;
-            font-style: italic;
-        }
-        .openrouter-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: linear-gradient(135deg, #10b981, #059669);
-            color: #0f172a;
-            font-weight: 700;
-            font-size: 0.9rem;
-            padding: 0.7rem 1.5rem;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s ease;
-            margin-bottom: 0.5rem;
-        }
-        .openrouter-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
-            background: linear-gradient(135deg, #34d399, #10b981);
-        }
-        .code-block {
-            background: #0f172a;
-            border: 1px solid rgba(148, 163, 184, 0.15);
-            border-radius: 12px;
-            padding: 1.25rem;
-            margin: 0.75rem 0;
-            overflow-x: auto;
-            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-            font-size: 0.82rem;
-            line-height: 1.55;
-            color: #e2e8f0;
-        }
-        @media (max-width: 640px) {
-            .code-block { font-size: 0.72rem; padding: 1rem; }
-        }
-        .code-block .keyword { color: #c084fc; }
-        .code-block .string { color: #34d399; }
-        .code-block .comment { color: #64748b; font-style: italic; }
-        .code-block .function { color: #60a5fa; }
-        .code-block .number { color: #fbbf24; }
-        .cost-highlight {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            border-radius: 10px;
-            padding: 0.75rem 1.25rem;
-            color: #10b981;
-            font-weight: 700;
-            font-size: 1.1rem;
-        }
-        @media (max-width: 640px) {
-            .cost-highlight { font-size: 0.95rem; padding: 0.6rem 1rem; }
-        }
-        .api-key-demo {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 8px;
-            padding: 0.5rem 1rem;
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.85rem;
-            color: #34d399;
-            margin: 0.5rem 0;
-        }
-        @media (max-width: 640px) {
-            .api-key-demo { font-size: 0.78rem; padding: 0.4rem 0.75rem; }
-        }
-        .api-key-demo .label {
-            color: #64748b;
-            font-weight: 600;
-            font-family: 'Inter', system-ui, sans-serif;
-        }
-
-        /* ── Quick API Reference ── */
-        .api-ref {
-            margin: 3rem 0;
-        }
-        .api-ref-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-        @media (max-width: 768px) {
-            .api-ref-grid { grid-template-columns: 1fr; gap: 0.75rem; }
-        }
-        .api-ref-card {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid rgba(148, 163, 184, 0.12);
-            border-radius: 12px;
-            padding: 1.25rem;
-            transition: all 0.3s ease;
-        }
-        .api-ref-card:hover {
-            border-color: rgba(99, 102, 241, 0.4);
-            transform: translateY(-2px);
-        }
-        .api-ref-card .method {
-            display: inline-block;
-            background: rgba(59, 130, 246, 0.15);
-            color: #93c5fd;
-            font-weight: 700;
-            font-size: 0.7rem;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-right: 0.5rem;
-            vertical-align: middle;
-        }
-        .api-ref-card .endpoint {
-            font-family: 'JetBrains Mono', 'Fira Code', monospace;
-            font-size: 0.85rem;
-            color: #e2e8f0;
-            font-weight: 600;
-            vertical-align: middle;
-        }
-        @media (max-width: 640px) {
-            .api-ref-card .endpoint { font-size: 0.78rem; }
-        }
-        .api-ref-card .desc {
-            color: #94a3b8;
-            font-size: 0.85rem;
-            margin-top: 0.5rem;
-            line-height: 1.5;
-        }
-        @media (max-width: 640px) {
-            .api-ref-card .desc { font-size: 0.8rem; }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentOptima — Stop overpaying for AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0ea5e9',
+            success: '#22c55e',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root { --bg: #0f172a; }
+    body { background: var(--bg); color: #f8fafc; font-family: system-ui, sans-serif; }
+    .card { background: rgba(30,41,59,0.7); border: 1px solid rgba(148,163,184,0.1); border-radius: 12px; backdrop-filter: blur(10px); }
+    .gradient-text { background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .btn-primary { background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); border: none; cursor: pointer; color: white; font-weight: 600; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    input, select { background: #0f172a; border: 1px solid rgba(148,163,184,0.2); color: #f8fafc; border-radius: 8px; }
+    input:focus { outline: none; border-color: #0ea5e9; }
+    pre { overflow-x: auto; }
+    .fade-in { animation: fadeIn 0.4s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    .bar-fill { transition: width 0.8s ease; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="hero">
-            <h1>🚀 AgentOptima</h1>
-            <p class="subtitle">The self-improving intelligence network for AI agents</p>
-            <p style="color:#94a3b8;font-size:1rem;max-width:680px;margin:0 auto" class="hero-description">Route every task to the best model automatically. AgentOptima tracks real performance across models, learns from results, and continuously improves how your agent thinks.</p>
-            
-            <div class="status-banner" id="api-status">
-                <div class="status-dot"></div>
-                <span class="status-text" id="status-text">Connecting to AgentOptima API...</span>
-            </div>
-        </div>
 
-        <div class="metrics-grid" id="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-value" id="tasks-count">Loading...</div>
-                <div class="metric-label">Tasks Logged</div>
-                <div class="metric-sub" id="storage-info">400K+ across 3 sources</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value" id="models-count">Loading...</div>
-                <div class="metric-label">Models Tracked</div>
-                <div class="metric-sub">Real-time analytics</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value" id="uptime-status">Checking...</div>
-                <div class="metric-label">API Status</div>
-                <div class="metric-sub" id="uptime-details"></div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-value" id="cost-reduction" style="color: #10b981;">--</div>
-                <div class="metric-label">Avg Cost Reduction</div>
-                <div class="metric-sub">via AgentOptima routing</div>
-            </div>
-        </div>
+<!-- ── NAV ─────────────────────────────────────────────────────────────── -->
+<nav class="border-b border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-50" style="background:#0f172a;">
+  <div class="flex items-center gap-2">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+    <span class="font-bold text-lg">AgentOptima</span>
+    <span id="nav-plan" class="hidden text-xs px-2 py-0.5 rounded-full ml-1" style="background:rgba(14,165,233,0.1);color:#0ea5e9;"></span>
+  </div>
+  <div class="flex items-center gap-3">
+    <a href="https://github.com/arisauraaudit/agentoptima" target="_blank" class="text-slate-400 hover:text-white transition-colors">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+    </a>
+    <button id="signout-btn" onclick="signOut()" class="hidden text-xs text-slate-500 hover:text-slate-300 transition-colors px-3 py-1.5">Sign out</button>
+  </div>
+</nav>
 
-        <!-- Routing Stats Bar -->
-        <div id="routing-stats-bar" style="display:flex;flex-wrap:wrap;gap:0.75rem 1.25rem;justify-content:center;margin:0.75rem 0 1.5rem;font-size:0.8rem;color:#64748b">
-            <span style="white-space:nowrap">🟢 <span id="stat-cheap-pct">--</span> routed to cheap models</span>
-            <span style="white-space:nowrap">💰 <span id="stat-saved-today">--</span> saved today</span>
-            <span style="white-space:nowrap">⚡ <span id="stat-total-routed">--</span> messages routed</span>
+<!-- ── LANDING ──────────────────────────────────────────────────────────── -->
+<div id="landing" class="hidden">
+  <div class="max-w-4xl mx-auto px-6 pt-20 pb-12 text-center fade-in">
 
-        </div>
-
-
-        <!-- ── Get Started in 2 Minutes ── -->
-        <div class="onboarding">
-            <div class="onboarding-header" onclick="toggleOnboarding()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
-                <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-                    <h2 class="onboarding-title" style="margin:0">🚀 Get Started in 2 Minutes</h2>
-                    <span style="background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);color:#f59e0b;font-size:0.72rem;font-weight:700;padding:3px 10px;border-radius:50px;letter-spacing:0.05em;text-transform:uppercase;">Beta · Invite Only</span>
-                </div>
-                <span id="onboarding-chevron" style="color:#64748b;font-size:1.2rem;transition:transform 0.2s;flex-shrink:0;">▼</span>
-            </div>
-            <div id="onboarding-content" style="display:none;margin-top:1.5rem;">
-            <p class="onboarding-sub">Plug any AI agent into AgentOptima and start routing smarter — in four simple steps.</p>
-
-            <div class="onboarding-grid">
-
-                <!-- Step 1 -->
-                <div class="onboarding-step">
-                    <div class="step-number">1</div>
-                    <div class="step-title">Get your API provider</div>
-                    <div class="step-text">
-                        AgentOptima works with any AI provider. For maximum model selection (20+ models),
-                        we recommend OpenRouter.
-                    </div>
-                    <a href="https://openrouter.ai/?via=agentoptima" target="_blank" rel="noopener"
-                       class="openrouter-btn">
-                        Get OpenRouter Account →
-                    </a>
-                    <div class="step-note">Free to start. Pay only for what you use.</div>
-                </div>
-
-                <!-- Step 2 -->
-                <div class="onboarding-step">
-                    <div class="step-number">2</div>
-                    <div class="step-title">Get your AgentOptima API key</div>
-                    <div class="step-text">
-                        Sign up for AgentOptima to get your API key. Every request authenticates
-                        with your key in the header.
-                    </div>
-                    <div class="api-key-demo">
-                        <span class="label">Header:</span>
-                        <span>X-API-Key: ao-xxxxx</span>
-                    </div>
-                    <div class="step-note">Currently in beta — contact us for access</div>
-                </div>
-
-                <!-- Step 3 (full width on desktop) -->
-                <div class="onboarding-step" style="grid-column: span 2;">
-                    <div class="step-number">3</div>
-                    <div class="step-title">Plug into your agent</div>
-                    <div class="step-text">
-                        Add AgentOptima to your agent's workflow. Classify tasks and get model recommendations
-                        with two simple API calls.
-                    </div>
-                    <div class="code-block">
-<span class="keyword">import</span> requests
-
-<span class="comment"># Classify your task</span>
-response = requests.<span class="function">post</span>(
-    <span class="string">"https://agentoptima.ai/api/v1/classify"</span>,
-    headers={<span class="string">"X-API-Key"</span>: <span class="string">"your-key"</span>},
-    json={<span class="string">"message"</span>: <span class="string">"your task description"</span>}
-)
-result = response.<span class="function">json</span>()
-<span class="comment"># → {"task_type": "coding", "recommended_cascade": ["gpt-4o-mini", "claude-haiku", "o3-mini"]}</span>
-
-<span class="comment"># Get model recommendation</span>
-rec = requests.<span class="function">get</span>(
-    <span class="string">"https://agentoptima.ai/api/v1/recommend?task_type=coding"</span>,
-    headers={<span class="string">"X-API-Key"</span>: <span class="string">"your-key"</span>}
-).<span class="function">json</span>()
-<span class="comment"># → Use rec["recommended_model"] for your task</span>
-                    </div>
-                </div>
-
-                <!-- Step 4 -->
-                <div class="onboarding-step">
-                    <div class="step-number">4</div>
-                    <div class="step-title">Watch costs drop</div>
-                    <div class="step-text">
-                        AgentOptima routes each task to the most cost-effective model.
-                        Most teams see <strong style="color:#10b981">60-80% cost reduction</strong> within the first week.
-                    </div>
-                    <div class="cost-highlight">
-                        💰 60-80% cost reduction
-                    </div>
-                </div>
-
-            </div>
-            </div><!-- /onboarding-content -->
-        </div>
-        <!-- ── /Get Started in 2 Minutes ── -->
-
-        <!-- ── Quick API Reference ── -->
-        <div class="section api-ref">
-            <h2 class="section-title">⚡ Quick API Reference</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                Four endpoints to integrate AgentOptima into any agent workflow.
-            </p>
-            <div class="api-ref-grid">
-                <div class="api-ref-card">
-                    <div>
-                        <span class="method">POST</span>
-                        <span class="endpoint">/api/v1/classify</span>
-                    </div>
-                    <div class="desc">Classify a task and get model cascade</div>
-                </div>
-                <div class="api-ref-card">
-                    <div>
-                        <span class="method">GET</span>
-                        <span class="endpoint">/api/v1/recommend</span>
-                    </div>
-                    <div class="desc">Get best model for task type</div>
-                </div>
-                <div class="api-ref-card">
-                    <div>
-                        <span class="method">GET</span>
-                        <span class="endpoint">/api/v1/cascade</span>
-                    </div>
-                    <div class="desc">Get full retry waterfall</div>
-                </div>
-                <div class="api-ref-card">
-                    <div>
-                        <span class="method">POST</span>
-                        <span class="endpoint">/api/v1/track</span>
-                    </div>
-                    <div class="desc">Log task outcomes for learning</div>
-                </div>
-            </div>
-        </div>
-        <!-- ── /Quick API Reference ── -->
-
-
-        <div class="section">
-            <h2 class="section-title">🏆 Live Model Rankings</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                <span style="color:#10b981;font-weight:600">🟢 Data-driven routing active</span> — AgentOptima Score combines quality, reliability and cost efficiency across 400K+ real inference outcomes.
-            </p>
-            <div id="rankings-accordion">
-                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading rankings…</div>
-            </div>
-        </div>
-
-        <!-- ── Routing Map ─────────────────────────────────────────────── -->
-        <div class="section" id="routing-map-section">
-            <h2 class="section-title">🗺️ Routing Map</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                Every task type routes to the best model — backed by <strong style="color:#f1f5f9">400K+ real task outcomes</strong> across live agents, research benchmarks, and routing data. Send any task to <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/recommend</code> and get the optimal model instantly.
-            </p>
-            <div id="routing-map-container">
-                <div style="color:#64748b;padding:1.5rem;text-align:center">Loading routing map…</div>
-            </div>
-        </div>
-
-        <div class="section" id="recent-tasks-section">
-            <h2 class="section-title">⚡ Live Task Feed</h2>
-            <p style="color:#94a3b8;margin-bottom:1.5rem;font-size:0.95rem" class="section-desc">Most recent tasks logged across all agents and models. Updates every 15s.</p>
-            <div id="recent-tasks-feed" style="display:flex;flex-direction:column;gap:0.5rem">
-                <div style="color:#64748b;padding:1rem;text-align:center">Loading recent tasks…</div>
-            </div>
-        </div>
-
-
-
-        <!-- ── Routing Intelligence ─────────────────────────────────────── -->
-        <div class="section" id="routing-intelligence-section">
-            <h2 class="section-title">🧠 Routing Intelligence</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:0.5rem" class="section-desc">
-                Live efficiency data from <code style="color:#6366f1;background:rgba(99,102,241,0.1);padding:2px 6px;border-radius:4px">/api/v1/efficiency</code> — best-value models vs Sonnet baseline, updated every 60s.
-            </p>
-
-            <!-- Best Value Cards -->
-            <p style="color:#64748b;font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;margin-top:1rem;margin-bottom:0.25rem">Best Value Models</p>
-            <div class="efficiency-grid" id="efficiency-cards">
-                <div style="color:#64748b;padding:1.5rem;text-align:center;grid-column:1/-1">Loading efficiency data…</div>
-            </div>
-
-            <!-- Routing Recommendations -->
-            <div class="routing-recs" id="routing-recs-panel">
-                <p style="color:#e2e8f0;font-weight:600;font-size:0.9rem;margin-bottom:0.75rem">📋 Routing Recommendations</p>
-                <ul id="routing-recs-list">
-                    <li><span class="rec-check">⏳</span> Loading recommendations…</li>
-                </ul>
-            </div>
-        </div>
-        <!-- ── /Routing Intelligence ──────────────────────────────────────── -->
-
-
-        <!-- ── Session Intelligence Widget ────────────────────────────────────── -->
-        <div class="section" id="si-section">
-            <h2 class="section-title">🧠 Session Intelligence</h2>
-            <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem" class="section-desc">
-                Real-time context-aware model routing savings. Aris shifts to cheaper models when context is large, tracking every dollar saved.
-            </p>
-            <div class="metrics-grid" id="si-metrics-grid" style="margin:0 0 1rem">
-                <div class="metric-card">
-                    <div class="metric-value" id="si-savings-value" style="color:#10b981">--</div>
-                    <div class="metric-label">SI Savings</div>
-                    <div class="metric-sub">estimated via model shifts</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="si-shifts-value">--</div>
-                    <div class="metric-label">Shifts</div>
-                    <div class="metric-sub">total model shifts executed</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="si-model-value" style="font-size:1rem;word-break:break-all">--</div>
-                    <div class="metric-label">Top Model</div>
-                    <div class="metric-sub">most-shifted-to model</div>
-                </div>
-            </div>
-            <p style="color:#64748b;font-size:0.8rem;margin-top:0.5rem" id="si-status-line">Loading Session Intelligence data…</p>
-        </div>
-        <!-- ── /Session Intelligence Widget ────────────────────────────────────── -->
-
-
-        <!-- ── Routing Map ─────────────────────────────────────────────── -->
-
-
-        <!-- ── Task State Board ─────────────────────────────────────────────── -->
-        <div class="section" id="task-state-section">
-            <h2 class="section-title">📊 Task State Board</h2>
-            <p class="section-desc" style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem">
-                Live task health across all agents. Tracks success, failures, retry chains, and error types.
-            </p>
-            <div id="task-state-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:1.5rem"></div>
-            <h3 style="color:#f1f5f9;font-size:1rem;margin-bottom:0.75rem">⚠️ Recent Failures</h3>
-            <div id="failed-tasks-table"></div>
-            <p style="color:#64748b;font-size:0.8rem;margin-top:0.75rem">Auto-refreshes every 30s</p>
-        </div>
-        <!-- ── /Task State Board ─────────────────────────────────────────────── -->
-
-        
-
-        <!-- ── Worker Contracts ──────────────────────────────────────────────── -->
-        <div class="section" id="contracts-section">
-            <h2 class="section-title">📋 Worker Contracts</h2>
-            <p class="section-desc" style="color:#94a3b8;font-size:0.9rem;margin-bottom:1.5rem">
-                Typed input/output schemas per task type. Workers receive a contract spec — not a vague prompt.
-            </p>
-            <div id="contracts-version" style="color:#10b981;font-size:0.85rem;margin-bottom:1rem"></div>
-            <div id="contracts-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem"></div>
-        </div>
-        <!-- ── /Worker Contracts ──────────────────────────────────────────────── -->
-
-<script>
-const AO_API_KEY = 'ao-41727e957d734ef638903180293af0d6171efda7373902e6';
-const AO_AUTH_HEADERS = { 'X-API-Key': AO_API_KEY };
-
-function statCard(label, value, color='#10b981') {
-    return `<div style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.2);border-radius:12px;padding:1.25rem;text-align:center">
-        <div style="font-size:1.8rem;font-weight:700;color:${color}">${value}</div>
-        <div style="color:#94a3b8;font-size:0.8rem;margin-top:0.25rem">${label}</div>
-    </div>`;
-}
-
-function relativeTime(isoStr) {
-    if (!isoStr) return 'unknown';
-    const diff = (Date.now() - new Date(isoStr).getTime()) / 1000;
-    if (diff < 60) return Math.round(diff) + 's ago';
-    if (diff < 3600) return Math.round(diff / 60) + 'm ago';
-    if (diff < 86400) return Math.round(diff / 3600) + 'h ago';
-    return Math.round(diff / 86400) + 'd ago';
-}
-
-// ── Task State Board ──────────────────────────────────────────────────────────
-async function loadTaskState() {
-    const grid = document.getElementById('task-state-grid');
-    const table = document.getElementById('failed-tasks-table');
-    grid.innerHTML = statCard('Loading...', '…', '#64748b') + statCard('', '', '#64748b') + statCard('', '', '#64748b') + statCard('', '', '#64748b');
-
-    try {
-        const [statusResp, failedResp] = await Promise.allSettled([
-            fetch('https://agentoptima.ai/api/v1/status'),
-            fetch('https://agentoptima.ai/api/v1/tasks/failed', { headers: AO_AUTH_HEADERS })
-        ]);
-
-        let statusData = {};
-        let failedData = { tasks: [] };
-
-        if (statusResp.status === 'fulfilled' && statusResp.value.ok) {
-            statusData = await statusResp.value.json();
-        }
-        if (failedResp.status === 'fulfilled' && failedResp.value.ok) {
-            failedData = await failedResp.value.json();
-        }
-
-        const totalTasks = statusData.tasks_logged ?? statusData.total_tasks ?? '--';
-        const successTasks = statusData.tasks_success ?? 0;
-        const successRate = (totalTasks !== '--' && totalTasks > 0)
-            ? (successTasks / totalTasks * 100).toFixed(1) + '%'
-            : '--';
-        const liveTasks = statusData.tasks_last_24h ?? statusData.active_tasks ?? (statusData.data_sources && statusData.data_sources.live) ?? '--';
-        const failedCount = (failedData.tasks || []).length;
-
-        grid.innerHTML =
-            statCard('Total Tasks', typeof totalTasks === 'number' ? totalTasks.toLocaleString() : totalTasks, '#3b82f6') +
-            statCard('Success Rate', successRate, '#10b981') +
-            statCard('Live Tasks', typeof liveTasks === 'number' ? liveTasks.toLocaleString() : liveTasks, '#8b5cf6') +
-            statCard('Failed (needs retry)', failedCount, failedCount > 0 ? '#ef4444' : '#10b981');
-
-        const tasks = (failedData.tasks || []).slice(0, 5);
-        if (tasks.length === 0) {
-            table.innerHTML = '<div style="color:#10b981;font-size:0.9rem;padding:1rem;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:8px">✅ No recent failures — system running clean</div>';
-        } else {
-            const rows = tasks.map(t => {
-                const taskId = (t.task_id || '').substring(0, 20);
-                const modelShort = (t.model || '--').split('/').pop().split('-').slice(0, 3).join('-');
-                return `<tr style="border-bottom:1px solid rgba(148,163,184,0.1)">
-                    <td style="padding:0.7rem 1rem;font-family:monospace;font-size:0.8rem;color:#f1f5f9">${taskId}</td>
-                    <td style="padding:0.7rem 1rem;color:#94a3b8;font-size:0.85rem">${t.task_type || '--'}</td>
-                    <td style="padding:0.7rem 1rem;color:#ef4444;font-size:0.8rem">${t.error_type || t.error || '--'}</td>
-                    <td style="padding:0.7rem 1rem;color:#8b5cf6;font-size:0.8rem">${modelShort}</td>
-                    <td style="padding:0.7rem 1rem;color:#64748b;font-size:0.8rem">${relativeTime(t.logged_at || t.created_at)}</td>
-                </tr>`;
-            }).join('');
-            table.innerHTML = `<div style="overflow-x:auto">
-                <table style="width:100%;border-collapse:collapse;background:rgba(30,41,59,0.8);border-radius:12px;overflow:hidden;border:1px solid rgba(148,163,184,0.2)">
-                    <thead style="background:rgba(15,23,42,0.9)">
-                        <tr style="border-bottom:1px solid rgba(148,163,184,0.2)">
-                            <th style="padding:0.7rem 1rem;text-align:left;color:#e2e8f0;font-size:0.75rem;text-transform:uppercase">Task ID</th>
-                            <th style="padding:0.7rem 1rem;text-align:left;color:#e2e8f0;font-size:0.75rem;text-transform:uppercase">Type</th>
-                            <th style="padding:0.7rem 1rem;text-align:left;color:#e2e8f0;font-size:0.75rem;text-transform:uppercase">Error</th>
-                            <th style="padding:0.7rem 1rem;text-align:left;color:#e2e8f0;font-size:0.75rem;text-transform:uppercase">Model</th>
-                            <th style="padding:0.7rem 1rem;text-align:left;color:#e2e8f0;font-size:0.75rem;text-transform:uppercase">When</th>
-                        </tr>
-                    </thead>
-                    <tbody>${rows}</tbody>
-                </table>
-            </div>`;
-        }
-    } catch (err) {
-        console.error('loadTaskState error:', err);
-        grid.innerHTML = statCard('Error loading', '⚠️', '#ef4444');
-        table.innerHTML = '<div style="color:#ef4444;font-size:0.85rem;padding:0.75rem">Error loading failed tasks</div>';
-    }
-}
-setInterval(loadTaskState, 30000);
-loadTaskState();
-
-
-
-// ── Worker Contracts ──────────────────────────────────────────────────────────
-async function loadContracts() {
-    const versionEl = document.getElementById('contracts-version');
-    const gridEl = document.getElementById('contracts-grid');
-    versionEl.textContent = 'Loading contracts...';
-    gridEl.innerHTML = '';
-
-    try {
-        const resp = await fetch('https://agentoptima.ai/api/v1/contracts', { headers: AO_AUTH_HEADERS });
-        if (!resp.ok) throw new Error('API error: ' + resp.status);
-        const data = await resp.json();
-
-        const version = data.version || 'v1.0';
-        const count = data.count || Object.keys(data.contracts || {}).length;
-        versionEl.textContent = `${version} • ${count} contracts active`;
-
-        const contracts = data.contracts || {};
-        const typeColors = {
-            coding: '#3b82f6',
-            writing: '#8b5cf6',
-            analysis: '#f59e0b',
-            research: '#10b981',
-            data: '#06b6d4',
-            math: '#f472b6',
-            strategy: '#a78bfa',
-            general: '#94a3b8'
-        };
-
-        gridEl.innerHTML = Object.entries(contracts).map(([type, contract]) => {
-            const color = typeColors[type] || '#64748b';
-            const outputs = Object.keys(contract.output_fields || contract.output || {});
-            const constraints = contract.constraints || [];
-            const desc = contract.description || contract.desc || `${type} task contract`;
-            const outputTags = outputs.slice(0, 6).map(f =>
-                `<span style="background:rgba(30,41,59,0.9);border:1px solid rgba(148,163,184,0.2);border-radius:4px;padding:2px 6px;font-size:0.72rem;color:#94a3b8;margin:2px;display:inline-block">${f}</span>`
-            ).join('');
-            const constraintList = constraints.slice(0, 4).map(c =>
-                `<li style="color:#64748b;font-size:0.8rem;margin-bottom:0.2rem">${c}</li>`
-            ).join('');
-
-            const cardId = 'contract-' + type;
-            return `<div style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.2);border-radius:12px;overflow:hidden">
-                <div onclick="document.getElementById('${cardId}').style.display=document.getElementById('${cardId}').style.display==='none'?'block':'none'"
-                     style="padding:1rem 1.25rem;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none">
-                    <div style="display:flex;align-items:center;gap:0.75rem">
-                        <span style="background:${color}20;color:${color};border:1px solid ${color}40;border-radius:20px;padding:2px 10px;font-size:0.75rem;font-weight:700;text-transform:uppercase">${type}</span>
-                        <span style="color:#f1f5f9;font-size:0.9rem;font-weight:600">${desc.substring(0, 50)}${desc.length > 50 ? '…' : ''}</span>
-                    </div>
-                    <span style="color:#64748b;font-size:0.8rem">▼</span>
-                </div>
-                <div id="${cardId}" style="display:none;padding:0 1.25rem 1.25rem;border-top:1px solid rgba(148,163,184,0.1)">
-                    <p style="color:#94a3b8;font-size:0.85rem;margin:0.75rem 0 0.5rem">Output fields:</p>
-                    <div style="margin-bottom:0.75rem">${outputTags || '<span style="color:#64748b;font-size:0.8rem">—</span>'}</div>
-                    ${constraints.length > 0 ? `<p style="color:#94a3b8;font-size:0.85rem;margin-bottom:0.35rem">Constraints:</p>
-                    <ul style="list-style:disc;padding-left:1.25rem;margin:0">${constraintList}</ul>` : ''}
-                </div>
-            </div>`;
-        }).join('');
-
-    } catch (err) {
-        console.error('loadContracts error:', err);
-        versionEl.textContent = 'Error loading contracts';
-        gridEl.innerHTML = '<div style="color:#ef4444;font-size:0.85rem;padding:0.75rem">Failed to load worker contracts from API. Check connection.</div>';
-    }
-}
-loadContracts();
-</script>
-
-
-                <!-- ── Connect Your Agent — COMING SOON (security audit in progress) ── -->
-        <div class="section" id="connect-section">
-            <h2 class="section-title">🔌 Connect Your Agent</h2>
-            <p style="color:#94a3b8;margin-bottom:2rem;font-size:1.05rem" class="section-desc">External agent access is coming soon.</p>
-
-            <div style="background:rgba(30,41,59,0.9);border:1px solid rgba(148,163,184,0.15);border-radius:16px;padding:3rem 2.5rem;max-width:680px;text-align:center" class="register-panel">
-                <div style="font-size:2.5rem;margin-bottom:1.25rem">🔒</div>
-                <h3 style="color:#f1f5f9;font-size:1.25rem;font-weight:700;margin-bottom:0.75rem">Coming Soon</h3>
-                <p style="color:#64748b;font-size:0.975rem;line-height:1.7;max-width:480px;margin:0 auto 2rem">
-                    We're finalising security audits and access controls before opening external agent registration.
-                    Early access will be invite-only.
-                </p>
-                <div style="display:inline-flex;align-items:center;gap:0.6rem;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:50px;padding:0.6rem 1.25rem">
-                    <span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;box-shadow:0 0 8px #10b981"></span>
-                    <span style="color:#10b981;font-size:0.875rem;font-weight:600">Notify me when it launches</span>
-                </div>
-            </div>
-        </div>
-        <!-- ── /Connect Your Agent ─────────────────────────────────────── -->
-
-
-        <footer>
-            <p>AgentOptima v1.0.5 • Built by Aris • Recommendations powered by 400K+ real task outcomes across live agents, research benchmarks, and routing data.</p>
-            <p style="margin-top: 0.5rem; font-size: 0.875rem;">
-                <a href="https://github.com/arisauraaudit/agentoptima">GitHub</a> •
-                <a href="/api/v1/docs">API Docs</a> •
-                <a href="https://twitter.com/stablewatchbot">Twitter</a> •
-                <a href="/api/v1/status">Health Check</a>
-            </p>
-            <p style="margin-top: 1rem; font-size: 0.75rem; color: #475569;">
-                All data is cached for 30 seconds • Auto-refreshes every 30s
-            </p>
-        </footer>
+    <!-- Badge -->
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border mb-6 text-xs" style="border-color:rgba(14,165,233,0.3);background:rgba(14,165,233,0.05);color:#0ea5e9;">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+      One line. Every AI model. Automatic cost optimization.
     </div>
 
-    <script>
-        const API_BASE = 'https://agentoptima.ai/api/v1';
-        let rankingsData = [];
-        let lastRefresh = null;
-
-        async function fetchAPI(endpoint) {
-            try {
-                const response = await fetch(API_BASE + endpoint);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                return await response.json();
-            } catch (error) {
-                console.error(`API fetch error for ${endpoint}:`, error);
-                throw error;
-            }
-        }
-
-        async function fetchRankings() {
-            const rankingsUrl = API_BASE + '/rankings?include_subtypes=true';
-            try {
-                const response = await fetch(rankingsUrl);
-                if (!response.ok) throw new Error('Failed to fetch rankings');
-                const data = await response.json();
-                return { models: data.models || [], subtypes: data.subtypes || [] };
-            } catch (error) {
-                console.error('Rankings fetch error:', error);
-                return { models: [], subtypes: [] };
-            }
-        }
-
-        async function fetchSubtypeProgress() {
-            try {
-                const r = await fetch(API_BASE + '/subtype-progress');
-                if (!r.ok) return {};
-                const d = await r.json();
-                // Build map: subtype → { routing_ready, current_leader, leader_quality, runs_needed }
-                const map = {};
-                (d.subtypes || []).forEach(s => { map[s.subtype] = s; });
-                return map;
-            } catch(e) { return {}; }
-        }
-
-        // ── AgentOptima Score ──────────────────────────────────────────────────
-        function computeAOScore(rows) {
-            // Score 0-100: 40pts reliability + 30pts quality + 30pts cost efficiency
-            if (!rows || rows.length === 0) return 0;
-            const avgSuccess = rows.reduce((s,r) => s + (r.success_rate||0), 0) / rows.length;
-            const qualityRows = rows.filter(r => r.avg_quality > 0);
-            const avgQuality = qualityRows.length > 0
-                ? qualityRows.reduce((s,r) => s + (r.avg_quality||0), 0) / qualityRows.length
-                : 3.0; // default mid if no quality data
-            const avgCost = rows.reduce((s,r) => s + (r.avg_cost_cents||0), 0) / rows.length;
-            // Cost score: log-inverted — $0.001 = ~30pts, $0.10 = ~15pts, $1+ = ~0pts
-            const costScore = Math.max(0, 30 - Math.log10(Math.max(avgCost, 0.001) + 0.001) * 10);
-            return Math.min(100, Math.round(avgSuccess * 40 + (avgQuality / 5) * 30 + costScore));
-        }
-
-        function renderRankings(models, routing, subtypeRows, subtypeProgress, routingMeta) {
-            routingMeta = routingMeta || {};
-            routing = routing || {};
-            subtypeProgress = subtypeProgress || {};
-            rankingsData = models;
-            const container = document.getElementById('rankings-accordion');
-
-            if (!models || models.length === 0) {
-                container.innerHTML = '<div style="color:#64748b;padding:2rem;text-align:center">No model data yet — run the batch runner to start building data.</div>';
-                return;
-            }
-
-            // Build subtype lookup: model → category → [subtype rows]
-            const subtypeMap = {};
-            (subtypeRows || []).forEach(s => {
-                if (!subtypeMap[s.model]) subtypeMap[s.model] = {};
-                const cat = s.category || 'general';
-                if (!subtypeMap[s.model][cat]) subtypeMap[s.model][cat] = [];
-                subtypeMap[s.model][cat].push(s);
-            });
-
-            // Group rows by model
-            const grouped = {};
-            models.forEach(m => {
-                if (!grouped[m.model]) grouped[m.model] = [];
-                grouped[m.model].push(m);
-            });
-
-            // Sort models by overall success rate desc, then by avg cost asc
-            const modelList = Object.keys(grouped).sort((a, b) => {
-                const avgA = grouped[a].reduce((s,r) => s + (r.success_rate||0), 0) / grouped[a].length;
-                const avgB = grouped[b].reduce((s,r) => s + (r.success_rate||0), 0) / grouped[b].length;
-                if (avgB !== avgA) return avgB - avgA;
-                const costA = grouped[a].reduce((s,r) => s + (r.avg_cost_cents||0), 0) / grouped[a].length;
-                const costB = grouped[b].reduce((s,r) => s + (r.avg_cost_cents||0), 0) / grouped[b].length;
-                return costA - costB;
-            });
-
-            // Count how many categories each model is recommended for
-            const leadCount = {};
-            Object.entries(routing).forEach(([cat, model]) => {
-                leadCount[model] = (leadCount[model] || 0) + 1;
-            });
-
-            const catColour = {
-                coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
-                writing:'#ec4899', data:'#10b981', general:'#64748b'
-            };
-
-            container.innerHTML = modelList.map((modelId, idx) => {
-                const rows      = grouped[modelId];
-                const total     = rows.reduce((s,r) => s + (r.tasks_logged||0), 0);
-                const avgRate   = rows.reduce((s,r) => s + (r.success_rate||0), 0) / rows.length;
-                const avgCost   = rows.reduce((s,r) => s + (r.avg_cost_cents||0), 0) / rows.length;
-                const avgDur    = rows.reduce((s,r) => s + (r.avg_duration||0), 0) / rows.length;
-                const rateLabel = (avgRate * 100).toFixed(0) + '%';
-                const rateColour = avgRate >= 0.9 ? '#10b981' : avgRate >= 0.6 ? '#f59e0b' : '#ef4444';
-                const costLabel = avgCost < 0.1 ? '<$0.001' : '$' + (avgCost/100).toFixed(4);
-                const shortName = modelId.split('/').pop();
-                const providerTag = modelId.startsWith('anthropic') ? '🟣' :
-                                    modelId.startsWith('openai')    ? '🟢' :
-                                    modelId.startsWith('deepseek')  ? '🔵' :
-                                    modelId.startsWith('google')    ? '🔴' : '⚪';
-                const leads = leadCount[modelId] || 0;
-                const leadBadge = leads > 0
-                    ? `<span style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);border-radius:20px;padding:2px 10px;font-size:0.75rem;font-weight:600;margin-left:0.5rem">🎯 Best for ${leads} cat${leads>1?'s':''}</span>`
-                    : '';
-                const orchestratorBadge = shortName.includes('sonnet')
-                    ? `<span title="Handles in-session orchestration &amp; strategy turns — not a pure worker model" style="background:rgba(100,116,139,0.12);color:#94a3b8;border:1px solid rgba(100,116,139,0.25);border-radius:20px;padding:2px 10px;font-size:0.72rem;font-weight:500;margin-left:0.5rem">⚙️ Orchestrator</span>`
-                    : '';
-
-                // AgentOptima Score
-                const aoScore = computeAOScore(rows);
-                const scoreColour = aoScore >= 80 ? '#10b981' : aoScore >= 60 ? '#f59e0b' : '#ef4444';
-                const scoreBadge = `<span title="AgentOptima Score: quality × reliability ÷ cost" style="background:rgba(99,102,241,0.12);color:${scoreColour};border:1px solid rgba(99,102,241,0.25);border-radius:20px;padding:2px 10px;font-size:0.75rem;font-weight:700;margin-left:0.5rem">AO ${aoScore}</span>`;
-
-                const catRows = rows
-                    .sort((a,b) => (b.tasks_logged||0) - (a.tasks_logged||0))
-                    .map(r => {
-                        const c        = r.category || 'general';
-                        const col      = catColour[c] || '#64748b';
-                        const cRate    = ((r.success_rate||0)*100).toFixed(0);
-                        const cCost    = (r.avg_cost_cents||0) < 0.1 ? '<$0.001' : '$' + ((r.avg_cost_cents||0)/100).toFixed(4);
-                        const isTop    = routing[c] === modelId;
-                        const scoringIcon = isTop && routingMeta[c] ? (routingMeta[c].scoring_mode === 'quality_weighted' ? ' ⭐' : ' ⚡') : '';
-                        const topBadge = isTop ? `<span title="Scoring: ${(routingMeta[c]||{}).scoring_mode||'cost_aware'}" style="color:#10b981;font-size:0.75rem;font-weight:700">🎯 Active route${scoringIcon}</span>` : '';
-
-                        // Build nested subtype rows for this model+category
-                        const modelSubtypes = (subtypeMap[modelId] && subtypeMap[modelId][c]) || [];
-                        const subtypeHtml = modelSubtypes
-                            .sort((a,b) => (b.tasks_logged||0) - (a.tasks_logged||0))
-                            .map(st => {
-                                const stKey   = st.subtype;
-                                const stProg  = subtypeProgress[stKey] || {};
-                                const stReady = stProg.routing_ready;
-                                const isLeader = stProg.current_leader === modelId;
-                                const stRate  = ((st.success_rate||0)*100).toFixed(0);
-                                const stCost  = (st.avg_cost_cents||0) < 0.1 ? '<$0.001' : '$' + ((st.avg_cost_cents||0)/100).toFixed(4);
-                                const stQ     = st.avg_quality ? `<span style="color:#a78bfa;font-size:0.7rem">${parseFloat(st.avg_quality).toFixed(1)} ⭐</span>` : '<span style="color:#475569;font-size:0.7rem">—</span>';
-                                const routeBadge = stReady && isLeader
-                                    ? `<span style="color:#10b981;font-size:0.68rem;font-weight:700">🎯 routing</span>`
-                                    : stReady
-                                    ? `<span style="color:#475569;font-size:0.68rem">ready</span>`
-                                    : `<span style="color:#475569;font-size:0.68rem">${stProg.runs_needed||'?'} runs left</span>`;
-                                const stName  = stKey.split('/')[1] || stKey;
-                                return `
-                                <div class="subtype-row" style="display:grid;grid-template-columns:1fr 3.5rem 4rem 5rem auto;gap:0.4rem;align-items:center;
-                                    padding:0.3rem 1rem 0.3rem 2rem;
-                                    border-top:1px solid rgba(148,163,184,0.06);
-                                    background:rgba(0,0,0,0.15);font-size:0.78rem;white-space:nowrap">
-                                    <span style="color:${col};opacity:0.8;overflow:hidden;text-overflow:ellipsis">↳ ${stName}</span>
-                                    <span style="color:${(st.success_rate||0)>=0.9?'#10b981':'#f59e0b'}">${stRate}%</span>
-                                    <span style="color:#94a3b8">${(st.avg_duration||0).toFixed(1)}s</span>
-                                    <span style="color:#f59e0b">${stCost}</span>
-                                    <span style="display:flex;gap:0.35rem;align-items:center">${stQ}${routeBadge}</span>
-                                </div>`;
-                            }).join('');
-
-                        return `
-                        <div class="rank-cat-row" style="${isTop?'background:rgba(16,185,129,0.04)':''}">
-                            <span style="background:rgba(0,0,0,0.25);color:${col};padding:3px 10px;border-radius:20px;font-weight:600;display:inline-block;text-align:center;white-space:nowrap">${c}</span>
-                            <span style="color:${(r.success_rate||0)>=0.9?'#10b981':'#f59e0b'};font-weight:600">${cRate}%</span>
-                            <span class="rank-cat-col-dur" style="color:#94a3b8">${(r.avg_duration||0).toFixed(1)}s</span>
-                            <span class="rank-cat-col-cost" style="color:#f59e0b">${cCost}</span>
-                            <span class="rank-cat-col-tasks" style="color:#64748b">${r.tasks_logged||0} tasks</span>
-                            ${topBadge}
-                        </div>
-                        ${subtypeHtml}`;
-                    }).join('');
-
-                return `
-                <div style="background:rgba(30,41,59,0.8);border:1px solid ${leads>0?'rgba(16,185,129,0.3)':'rgba(148,163,184,0.15)'};border-radius:14px;margin-bottom:0.75rem;overflow:hidden">
-                    <div class="rank-summary" onclick="this.parentElement.querySelector('.cat-detail').classList.toggle('hidden-cats');this.querySelector('.chevron').classList.toggle('open')">
-                        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:0.25rem;min-width:0">
-                            <span class="rank-model-name" style="font-size:0.95rem;font-weight:700;color:#f1f5f9">${providerTag} ${shortName}</span>
-                            <span style="font-size:0.75rem;color:#475569;flex-shrink:0">${rows.length} cats</span>
-                            ${scoreBadge}
-                            ${leadBadge}
-                            ${orchestratorBadge}
-                        </div>
-                        <span style="color:${rateColour};font-weight:700;font-size:1rem;white-space:nowrap">${rateLabel}</span>
-                        <span class="rank-col-dur" style="color:#94a3b8;font-size:0.875rem;white-space:nowrap">${avgDur.toFixed(1)}s</span>
-                        <span class="rank-col-cost" style="color:#f59e0b;font-weight:600;font-size:0.875rem;white-space:nowrap">${costLabel}</span>
-                        <span class="rank-col-tasks" style="color:#64748b;font-size:0.875rem;white-space:nowrap">${total} tasks</span>
-                        <span class="chevron" style="color:#475569;font-size:0.8rem;transition:transform 0.2s;display:inline-block">▼</span>
-                    </div>
-                    <div class="cat-detail hidden-cats">
-                        <div class="rank-cat-header">
-                            <span>Category</span><span>Success</span>
-                            <span class="rank-cat-col-dur">Duration</span>
-                            <span class="rank-cat-col-cost">Cost</span>
-                            <span class="rank-cat-col-tasks">Tasks</span>
-                            <span></span>
-                        </div>
-                        ${catRows}
-                    </div>
-                </div>`;
-            }).join('');
-        }
-
-        // ── Routing Map ──────────────────────────────────────────────────
-        function renderRoutingMap(subtypeProgress, catRouting, subtypeRows) {
-            const container = document.getElementById('routing-map-container');
-            if (!container) return;
-
-            const providerColour = m => m.includes('anthropic') ? '#a78bfa' :
-                                        m.includes('openai')    ? '#34d399' :
-                                        m.includes('deepseek')  ? '#60a5fa' :
-                                        m.includes('google')    ? '#fb923c' : '#94a3b8';
-            const providerTag = m => m.includes('anthropic') ? '🟣' :
-                                     m.includes('openai')    ? '🟢' :
-                                     m.includes('deepseek')  ? '🔵' :
-                                     m.includes('google')    ? '🟠' : '⚪';
-            const shortName = m => m.split('/').pop();
-
-            const catColour = {
-                coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
-                writing:'#ec4899', data:'#10b981', general:'#64748b',
-                math:'#f97316', security:'#ef4444', knowledge:'#06b6d4',
-                conversation:'#d946ef'
-            };
-
-            // Build subtype list from subtype-progress OR fall back to rankings subtypeRows
-            const byCategory = {};
-            const spKeys = Object.keys(subtypeProgress || {});
-            if (spKeys.length > 0) {
-                spKeys.forEach(subtype => {
-                    const info = subtypeProgress[subtype];
-                    const cat = subtype.split('/')[0];
-                    if (!byCategory[cat]) byCategory[cat] = [];
-                    byCategory[cat].push({ subtype, ...info });
-                });
-            } else if (subtypeRows && subtypeRows.length > 0) {
-                // Fallback: derive from rankings subtype rows — cost-aware ranking per subtype
-                // Group all model rows per subtype
-                const stGroups = {};
-                subtypeRows.forEach(r => {
-                    if (!stGroups[r.subtype]) stGroups[r.subtype] = [];
-                    stGroups[r.subtype].push(r);
-                });
-                Object.entries(stGroups).forEach(([subtype, rows]) => {
-                    // Cost-aware rank: find cheapest model within 10% of best success rate
-                    const TOLERANCE = 0.10;
-                    const bestSr = Math.max(...rows.map(r => parseFloat(r.success_rate || 0)));
-                    const minSr  = bestSr * (1 - TOLERANCE);
-                    const eligible = rows.filter(r => parseFloat(r.success_rate || 0) >= minSr);
-                    const winner   = eligible.sort((a, b) =>
-                        parseFloat(a.avg_cost_cents || 999) - parseFloat(b.avg_cost_cents || 999)
-                    )[0];
-                    const best = winner || rows[0];
-                    const cat  = best.category || subtype.split('/')[0];
-                    if (!byCategory[cat]) byCategory[cat] = [];
-                    byCategory[cat].push({
-                        subtype,
-                        routing_ready: rows.length > 1 && best.tasks_logged >= 10,
-                        runs_needed: Math.max(0, 10 - (best.tasks_logged || 0)),
-                        current_leader: best.model,
-                        leader_success: best.success_rate,
-                        leader_cost: best.avg_cost_cents,
-                        leader_quality: best.avg_quality,
-                    });
-                });
-            }
-
-            // Ensure all catRouting categories exist
-            Object.entries(catRouting || {}).forEach(([cat]) => {
-                if (!byCategory[cat]) byCategory[cat] = [];
-            });
-
-            const cats = Object.keys(byCategory).sort();
-
-            if (cats.length === 0) {
-                container.innerHTML = '<div style="color:#64748b;padding:2rem;text-align:center">No routing data yet.</div>';
-                return;
-            }
-
-            container.innerHTML = cats.map(cat => {
-                const col = catColour[cat] || '#64748b';
-                const catModel = catRouting[cat];
-                const catModelHtml = catModel
-                    ? `<span style="color:${providerColour(catModel)};font-weight:600;font-size:0.85rem;text-align:right">${providerTag(catModel)} ${shortName(catModel)}</span>`
-                    : `<span style="color:#475569;font-size:0.8rem;text-align:right">mixed</span>`;
-
-                const subtypes = byCategory[cat] || [];
-                const subtypeHtml = subtypes
-                    .sort((a,b) => a.subtype.localeCompare(b.subtype))
-                    .map(st => {
-                        // For subtypes not yet routing-ready, fall back to the cost-aware
-                        // category-level recommendation (reflects v0.9.0 cost-aware routing)
-                        const rawLeader = st.current_leader || '';
-                        const ready = st.routing_ready;
-                        const leader = ready ? rawLeader : (catRouting[cat] || rawLeader);
-                        const isFallback = !ready && catRouting[cat];
-                        const stName = st.subtype.split('/')[1] || st.subtype;
-                        const qualLabel = st.leader_quality ? `${parseFloat(st.leader_quality).toFixed(1)} ⭐` : '—';
-                        const costLabel = st.leader_cost ? `${st.leader_cost < 0.1 ? '<$0.001' : '$'+(st.leader_cost/100).toFixed(4)}/task` : '';
-                        const statusDot = ready
-                            ? `<span style="color:#10b981;font-size:0.7rem;font-weight:700">● LIVE</span>`
-                            : isFallback
-                                ? `<span style="color:#f59e0b;font-size:0.7rem;font-weight:600">○ cat-routing</span>`
-                                : `<span style="color:#475569;font-size:0.7rem">${st.runs_needed} runs left</span>`;
-                        const costLabelShort = st.leader_cost ? (st.leader_cost < 0.1 ? '<$0.001' : '$'+(st.leader_cost/100).toFixed(4)) : '';
-                        return `
-                        <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.5fr) auto auto auto;gap:0.5rem;align-items:center;
-                            padding:0.4rem 1rem 0.4rem 1.5rem;
-                            border-top:1px solid rgba(148,163,184,0.06);
-                            background:rgba(0,0,0,0.12);min-width:0">
-                            <span style="color:${col};opacity:0.8;font-size:0.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">↳ ${stName}</span>
-                            <span style="color:${providerColour(leader)};font-weight:600;font-size:0.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;justify-self:end">${providerTag(leader)} ${shortName(leader)}</span>
-                            <span title="Quality score (Arena ELO)" style="color:#a78bfa;font-size:0.72rem;white-space:nowrap">${qualLabel}</span>
-                            <span style="color:#f59e0b;font-size:0.72rem;white-space:nowrap">${costLabelShort}</span>
-                            <span style="white-space:nowrap">${statusDot}</span>
-                        </div>`;
-                    }).join('');
-
-                return `
-                <div style="background:rgba(30,41,59,0.8);border:1px solid rgba(148,163,184,0.12);border-radius:12px;margin-bottom:0.6rem;overflow:hidden">
-                    <div style="display:grid;grid-template-columns:auto 1fr auto;gap:0.75rem;align-items:center;
-                        padding:0.65rem 1rem;">
-                        <span style="background:rgba(0,0,0,0.3);color:${col};padding:3px 12px;border-radius:20px;
-                            font-weight:700;font-size:0.82rem;text-align:center;white-space:nowrap">${cat}</span>
-                        ${catModelHtml}
-                        <span style="color:#475569;font-size:0.72rem;white-space:nowrap">${subtypes.length} subtypes</span>
-                    </div>
-                    ${subtypeHtml}
-                </div>`;
-            }).join('');
-        }
-
-
-
-        function renderPerformanceFeed() {
-            const container = document.getElementById('performance-feed');
-
-            // Deduplicate by model name -- pick best success_rate row per model
-            const seen = {};
-            rankingsData.forEach(m => {
-                if (!seen[m.model] || m.success_rate > seen[m.model].success_rate) {
-                    seen[m.model] = m;
-                }
-            });
-            const topModels = Object.values(seen).sort((a,b) => b.success_rate - a.success_rate);
-            
-            container.innerHTML = topModels.map(model => `
-                <div class="feed-card">
-                    <div class="feed-model">${model.model}</div>
-                    <div class="feed-type">${model.category.replace('_', ' ').toUpperCase()}</div>
-                    <div style="color: #10b981; font-weight: 600; margin-top: 0.5rem;">
-                        ${(model.success_rate * 100).toFixed(0)}% success
-                    </div>
-                    <div style="color: #94a3b8; font-size: 0.875rem; margin-top: 0.25rem;">
-                        ${'★'.repeat(Math.min(5, Math.round((model.success_rate||0) * 5)))}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function toggleOnboarding() {
-            const content = document.getElementById('onboarding-content');
-            const chevron = document.getElementById('onboarding-chevron');
-            const isHidden = content.style.display === 'none';
-            content.style.display = isHidden ? 'block' : 'none';
-            chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-        }
-
-        async function refresh() {
-            // Clear any stale error banner
-            const existing = document.querySelector('.error-banner');
-            if (existing) existing.remove();
-
-            // -- Step 1: Status (critical)
-            let status = null;
-            try {
-                status = await fetchAPI('/status');
-                document.getElementById('api-status').style.display = 'inline-flex';
-                document.getElementById('status-text').textContent = '✓ API Connected';
-                document.getElementById('tasks-count').textContent = status.tasks_logged.toLocaleString();
-                document.getElementById('storage-info').textContent = status.storage;
-                // Update storage info
-                const srcEl = document.getElementById('storage-info');
-                if (srcEl) {
-                    srcEl.textContent = `Recommendations powered by 400K+ real task outcomes across live agents, research benchmarks, and routing data.`;
-                }
-                document.getElementById('uptime-status').textContent = '✓ Online';
-                document.getElementById('uptime-details').textContent = `v${status.version}`;
-            } catch (e) {
-                console.error('Status fetch failed:', e);
-                document.getElementById('api-status').style.display = 'none';
-                const banner = document.createElement('div');
-                banner.className = 'error-banner';
-                banner.innerHTML = `<strong>⚠️ AgentOptima API is waking up...</strong><br><span class="loading">Retrying in 5 seconds...</span>`;
-                document.querySelector('.hero').after(banner);
-                setTimeout(() => refresh(), 5000);
-                return;
-            }
-
-            // -- Step 2: Rankings + subtypes (non-critical)
-            let _subtypeRows = [];
-            let _subtypeProgress = {};
-            try {
-                const rankResult = await fetchRankings();
-                rankingsData = rankResult.models;
-                _subtypeRows = rankResult.subtypes || [];
-                _subtypeProgress = await fetchSubtypeProgress();
-                renderRankings(rankingsData, {}, _subtypeRows, _subtypeProgress);
-                // Always use registry count from /status, not ranked model count
-                document.getElementById('models-count').textContent = status.models_tracked || '-';
-            } catch (e) {
-                console.error('Rankings failed:', e);
-                document.getElementById('models-count').textContent = status.models_tracked || '-';
-            }
-
-            // -- Step 5: Fetch routing recommendations per category (non-critical)
-            try {
-                const CATS = ['coding','research','strategy','writing','data','general'];
-                const recResults = await Promise.allSettled(
-                    CATS.map(c => fetchAPI(`/recommend?task_type=${c}&min_tasks=10`))
-                );
-                const routing = {};
-                const routingMeta = {};
-                CATS.forEach((c, i) => {
-                    if (recResults[i].status === 'fulfilled' && recResults[i].value.mode === 'data-driven') {
-                        routing[c] = recResults[i].value.recommended_model;
-                        routingMeta[c] = { scoring_mode: recResults[i].value.scoring_mode || 'cost_aware' };
-                    }
-                });
-                // Re-render rankings with routing data + subtypes baked in
-                renderRankings(rankingsData, routing, _subtypeRows, _subtypeProgress, routingMeta);
-                // Render routing map (pass subtypeRows as fallback when subtype-progress times out)
-                renderRoutingMap(_subtypeProgress, routing, _subtypeRows);
-            } catch(e) { console.error('Routing recommendations failed:', e); }
-
-            // -- Step 6: Recent tasks feed (non-critical)
-            try {
-                const recent = await fetchAPI('/tasks/recent?limit=25');
-                renderRecentTasks(recent);
-            } catch(e) { console.error('Recent tasks failed:', e); }
-
-            // -- Step 8: Routing stats bar (non-critical)
-            try { await loadRoutingStats(); } catch(e) { console.error('Routing stats failed:', e); }
-
-            lastRefresh = new Date();
-        }
-
-        function renderRecentTasks(data) {
-            const container = document.getElementById('recent-tasks-feed');
-            const tasks = data.tasks || [];
-            if (!tasks.length) {
-                container.innerHTML = '<div style="color:#64748b;padding:1rem;text-align:center">No tasks logged yet — run the batch runner to start building data.</div>';
-                return;
-            }
-            const categoryColour = {
-                coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
-                writing:'#ec4899', data:'#10b981', general:'#64748b'
-            };
-
-            // Build parent→children map
-            const childMap = {};
-            tasks.forEach(t => {
-                if (t.is_subtask && t.parent_task_id) {
-                    if (!childMap[t.parent_task_id]) childMap[t.parent_task_id] = [];
-                    childMap[t.parent_task_id].push(t);
-                }
-            });
-
-            function renderRow(t, isSubtask, childCount) {
-                const age    = t.logged_at ? timeAgo(t.logged_at) : '';
-                const colour = categoryColour[t.task_type] || '#64748b';
-                const ok     = t.success === true ? '✅' : t.success === false ? '❌' : '—';
-                const cost   = t.cost_cents != null ? '$' + (t.cost_cents/100).toFixed(4) : '—';
-                const dur    = t.duration_s != null ? t.duration_s + 's' : '—';
-                const subtaskStyle = isSubtask ? `
-                    margin-left:1.5rem;
-                    border-left:2px solid rgba(148,163,184,0.25);
-                    opacity:0.85;
-                    font-size:0.78rem;
-                ` : '';
-                const badgePrefix = isSubtask ? '↳ ' : '';
-                const descPrefix  = childCount > 0 ? '🧩 ' : '';
-                const subtaskCount = childCount > 0
-                    ? `<span style="color:#475569;font-size:0.72rem"> [${childCount} subtasks]</span>`
-                    : '';
-                const descText = t.task_desc ? t.task_desc.substring(0,80) + (t.task_desc.length>80?'…':'') : '—';
-                // Format agent_name display: highlight sub-agents
-                const agentDisplay = t.agent_name && t.agent_name.includes('/subagent:')
-                    ? `<span style="color:#7c3aed;font-size:0.72rem;background:rgba(124,58,237,0.1);padding:1px 4px;border-radius:3px">${t.agent_name.replace('aris/subagent:', '🤖 ')}</span>`
-                    : `<span style="color:#475569;font-size:0.75rem">${t.agent_name || '—'}</span>`;
-                const baseStyle = `background:rgba(30,41,59,0.7);border:1px solid rgba(148,163,184,0.12);border-radius:8px;padding:0.6rem 1rem;font-size:0.82rem;${subtaskStyle}`;
-                const mobileDesc = t.task_desc ? t.task_desc.substring(0, 55) + (t.task_desc.length > 55 ? '…' : '') : '—';
-                return `
-                <div class="feed-row-desktop" style="display:grid;grid-template-columns:2rem 7rem auto 2fr 8rem 3rem 3.5rem 5rem;overflow:hidden;gap:0.5rem;align-items:center;${baseStyle}">
-                    <span>${ok}</span>
-                    <span style="color:${colour};font-weight:600;background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:4px">${badgePrefix}${t.task_type || '—'}</span>
-                    ${sourceTag(t)}
-                    <span style="color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(t.task_desc||'').replace(/"/g,'&quot;')}">${descPrefix}${descText}${subtaskCount}</span>
-                    <span style="color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.model_short || t.model || '—'}</span>
-                    <span style="color:#94a3b8;text-align:right">${dur}</span>
-                    <span style="color:#94a3b8;text-align:right">${cost}</span>
-                    <span class="feed-col-agent" style="text-align:right">${agentDisplay}</span>
-                    <span style="color:#475569;text-align:right;font-size:0.75rem">${isSubtask ? '' : age}</span>
-                </div>
-                <div class="feed-row-mobile" style="grid-template-columns:2rem auto 1fr;gap:0.4rem;align-items:center;${baseStyle}">
-                    <span>${ok}</span>
-                    <span style="color:${colour};font-weight:600;background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:4px;white-space:nowrap">${badgePrefix}${t.task_type || '—'}</span>
-                    <span style="color:#cbd5e1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.78rem">${descPrefix}${mobileDesc}</span>
-                    <span></span>
-                    <span style="color:#64748b;font-size:0.72rem">${t.model_short || '—'}</span>
-                    <span style="color:#475569;font-size:0.72rem">${dur} ${cost}</span>
-                </div>`;
-            }
-
-            // Render: parents first with children immediately after, then orphan subtasks
-            const rows = [];
-            const renderedIds = new Set();
-            tasks.forEach(t => {
-                if (t.is_subtask) return; // skip subtasks in first pass
-                const children = childMap[t.task_id] || [];
-                rows.push(renderRow(t, false, children.length));
-                renderedIds.add(t.task_id);
-                children.forEach(child => {
-                    rows.push(renderRow(child, true, 0));
-                    renderedIds.add(child.task_id);
-                });
-            });
-            // Orphan subtasks (parent not in current view)
-            tasks.forEach(t => {
-                if (t.is_subtask && !renderedIds.has(t.task_id)) {
-                    rows.push(renderRow(t, true, 0));
-                }
-            });
-
-            container.innerHTML = rows.join('');
-        }
-
-        function sourceTag(t) {
-            if (t.is_subtask) return '<span></span>';
-            const notes = t.notes || '';
-            if (!notes) return '';
-            const n = notes.toLowerCase();
-            if (n.includes('decompose'))    return '<span style="font-size:0.7rem;background:rgba(139,92,246,0.2);color:#a78bfa;border-radius:4px;padding:1px 5px;white-space:nowrap">🧩 decompose</span>';
-            if (n.includes('parallel_compare')) return '<span style="font-size:0.7rem;background:rgba(59,130,246,0.2);color:#93c5fd;border-radius:4px;padding:1px 5px;white-space:nowrap">⚡ batch</span>';
-            if (n.includes('source=production')) return '<span style="font-size:0.7rem;background:rgba(16,185,129,0.2);color:#6ee7b7;border-radius:4px;padding:1px 5px;white-space:nowrap">🔴 live</span>';
-            return '';
-        }
-
-        function timeAgo(isoStr) {
-            const diff = Math.floor((Date.now() - new Date(isoStr)) / 1000);
-            if (diff < 60)  return diff + 's ago';
-            if (diff < 3600) return Math.floor(diff/60) + 'm ago';
-            if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
-            return Math.floor(diff/86400) + 'd ago';
-        }
-
-        // renderProgress removed — replaced by routing intelligence in Live Model Rankings
-
-                // ── Onboarding: disabled (Coming Soon — security audit in progress) ──
-
-        
-
-        // ── Routing Stats Bar Functions ─────────────────────────────────────────────────────
-
-        async function loadRoutingStats() {
-            try {
-                // Try to fetch gate stats
-                const gateStats = await fetchAPI('/routing/stats?since_hours=24');
-                
-                // Try to fetch rankings for model usage data
-                const rankResult = await fetchRankings();
-                const models = rankResult.models || [];
-                
-                // Calculate cheap model percentage
-                // Cheap models: haiku, gpt-4o-mini, deepseek-flash, and other sub-$0.10 models
-                const cheapModels = ['haiku', 'mini', 'small', 'flash', 'deepseek'];
-                const sonnetModels = ['sonnet', 'opus', 'gpt-4o', 'gpt-4'];
-                
-                // Deduplicate by unique model name for percentage calculation
-                const uniqueModels = [...new Map(models.map(m => [m.model, m])).values()];
-                let cheapUniqueCount = 0;
-                let sonnetUniqueCount = 0;
-                uniqueModels.forEach(m => {
-                    const modelName = m.model.toLowerCase();
-                    if (cheapModels.some(c => modelName.includes(c))) cheapUniqueCount++;
-                    else if (sonnetModels.some(e => modelName.includes(e))) sonnetUniqueCount++;
-                });
-                
-                const totalUnique = uniqueModels.length;
-                const cheapPct = totalUnique > 0 ? Math.round((cheapUniqueCount / totalUnique) * 100) : 78;
-                
-                // Calculate cost_per_success based avg cost reduction vs Sonnet
-                // Use cost_per_success (cost/success_rate) for fair comparison
-                const cheapRows = models.filter(m => cheapModels.some(c => m.model.toLowerCase().includes(c)) && m.cost_per_success);
-                const sonnetRows = models.filter(m => sonnetModels.some(e => m.model.toLowerCase().includes(e)) && m.cost_per_success);
-                
-                let avgCostReductionPct = null;
-                if (cheapRows.length > 0 && sonnetRows.length > 0) {
-                    const avgCheapCPS = cheapRows.reduce((s, m) => s + m.cost_per_success, 0) / cheapRows.length;
-                    const avgSonnetCPS = sonnetRows.reduce((s, m) => s + m.cost_per_success, 0) / sonnetRows.length;
-                    if (avgSonnetCPS > 0) {
-                        avgCostReductionPct = Math.round((1 - avgCheapCPS / avgSonnetCPS) * 100);
-                    }
-                }
-                
-                // Estimate daily savings based on total routed tasks
-                const avgCheapCost = cheapRows.length > 0
-                    ? cheapRows.reduce((s, m) => s + (m.avg_cost_cents || 0), 0) / cheapRows.length
-                    : 0.04;
-                const avgExpensiveCost = sonnetRows.length > 0
-                    ? sonnetRows.reduce((s, m) => s + (m.avg_cost_cents || 0), 0) / sonnetRows.length
-                    : 0.60;
-                const totalRouted = gateStats.total_routed || 0;
-                // Prefer real saved figure from routing/stats if available, else estimate
-                const totalSavedToday = gateStats.estimated_saved_dollars != null
-                    ? gateStats.estimated_saved_dollars.toFixed(2)
-                    : (() => {
-                        const costPerTaskIfSonnet = Math.max(avgExpensiveCost, 0.20);
-                        const costPerTaskActual = (cheapPct / 100) * avgCheapCost + ((100 - cheapPct) / 100) * costPerTaskIfSonnet;
-                        const savingsPerTask = Math.max(0, costPerTaskIfSonnet - costPerTaskActual);
-                        return (totalRouted * savingsPerTask / 100).toFixed(2);
-                    })();
-                // cheap_pct from routing/stats is more accurate than model-pool ratio
-                const displayCheapPct = gateStats.cheap_pct != null ? gateStats.cheap_pct : cheapPct;
-
-                // Update the stats bar
-                document.getElementById('stat-cheap-pct').textContent = displayCheapPct + '%';
-                document.getElementById('stat-saved-today').textContent = '$' + totalSavedToday;
-                document.getElementById('stat-total-routed').textContent = totalRouted;
-                
-                // Update avg cost reduction hero card
-                const costReductionEl = document.getElementById('cost-reduction');
-                if (costReductionEl) {
-                    if (avgCostReductionPct !== null && avgCostReductionPct > 0) {
-                        costReductionEl.textContent = avgCostReductionPct + '%';
-                    } else {
-                        costReductionEl.textContent = 'Collecting…';
-                    }
-                }
-                
-            } catch(e) {
-                console.error('loadRoutingStats error:', e);
-                // Keep defaults if API fails
-            }
-        }
-
-        // ── /Routing Stats Bar Functions ────────────────────────────────────────────────────
-
-        // ── Routing Intelligence Functions ─────────────────────────────────────────────
-
-        function shortModelName(fullId) {
-            const part = fullId.split('/').pop();
-            // Friendly shortening
-            return part
-                .replace('claude-haiku-4-5-20251001', 'Haiku 4.5')
-                .replace('claude-haiku-3', 'Haiku 3')
-                .replace('claude-sonnet-4-6', 'Sonnet 4.6')
-                .replace('claude-3-7-sonnet-20250219', 'Sonnet 3.7')
-                .replace('gpt-4o-mini', 'GPT-4o Mini')
-                .replace('gpt-4o', 'GPT-4o')
-                .replace('deepseek-v4-flash', 'DeepSeek Flash')
-                .replace('deepseek-chat', 'DeepSeek Chat')
-                .replace('gemini-2.0-flash-001', 'Gemini 2.0 Flash')
-                .replace('gemini-flash', 'Gemini Flash');
-        }
-
-        const taskColours = {
-            coding:'#3b82f6', research:'#8b5cf6', strategy:'#f59e0b',
-            writing:'#ec4899', data:'#10b981', general:'#64748b',
-            math:'#f97316', security:'#ef4444', knowledge:'#06b6d4',
-            conversation:'#d946ef'
-        };
-
-        async function loadEfficiencyData() {
-            try {
-                const data = await fetchAPI('/efficiency');
-                renderEfficiencyCards(data.best_value_models || []);
-                renderRoutingRecs(data.routing_recommendations || []);
-            } catch(e) {
-                console.error('Efficiency fetch failed:', e);
-                document.getElementById('efficiency-cards').innerHTML =
-                    '<div style="color:#ef4444;padding:1.5rem;text-align:center;grid-column:1/-1">Could not load efficiency data.</div>';
-            }
-        }
-
-        function renderEfficiencyCards(models) {
-            const container = document.getElementById('efficiency-cards');
-            if (!models.length) {
-                container.innerHTML = '<div style="color:#64748b;padding:1.5rem;text-align:center;grid-column:1/-1">No efficiency data yet.</div>';
-                return;
-            }
-            // Show top 5
-            const top5 = models.slice(0, 5);
-            container.innerHTML = top5.map(m => {
-                const name   = shortModelName(m.model);
-                const task   = m.task_type || 'general';
-                const col    = taskColours[task] || '#64748b';
-                const savings = m.vs_sonnet_savings_pct != null ? Math.round(m.vs_sonnet_savings_pct) : null;
-                const cps    = m.cost_per_success != null ? m.cost_per_success.toFixed(3) : null;
-                return `
-                <div class="efficiency-card">
-                    <div class="model-short" title="${m.model}">${name}</div>
-                    <div><span class="task-badge" style="background:rgba(0,0,0,0.3);color:${col};border-color:${col}40">${task}</span></div>
-                    ${savings != null
-                        ? `<div class="savings-pct">${savings}%</div>
-                           <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.1rem">cheaper than Sonnet</div>`
-                        : '<div style="color:#64748b;font-size:0.9rem">—</div>'}
-                    ${cps != null
-                        ? `<div class="cost-line">${cps}¢ per successful task</div>`
-                        : ''}
-                </div>`;
-            }).join('');
-        }
-
-        function renderRoutingRecs(recs) {
-            const list = document.getElementById('routing-recs-list');
-            if (!recs.length) {
-                list.innerHTML = '<li><span class="rec-check">ℹ️</span> No recommendations available yet.</li>';
-                return;
-            }
-            list.innerHTML = recs.map(r =>
-                `<li><span class="rec-check">✅</span><span>${r}</span></li>`
-            ).join('');
-        }
-
-        // ── /Routing Intelligence Functions ─────────────────────────────────────────────
-
-        // ── Session Intelligence Widget ───────────────────────────────────────────
-        async function loadSISavings() {
-            try {
-                const resp = await fetch('https://agentoptima.ai/api/v1/si/savings');
-                if (!resp.ok) throw new Error('si/savings ' + resp.status);
-                const data = await resp.json();
-
-                const savingsEl  = document.getElementById('si-savings-value');
-                const shiftsEl   = document.getElementById('si-shifts-value');
-                const modelEl    = document.getElementById('si-model-value');
-                const statusEl   = document.getElementById('si-status-line');
-
-                const totalShifts = data.total_shifts || 0;
-
-                if (totalShifts === 0) {
-                    savingsEl.textContent = 'Collecting data…';
-                    shiftsEl.textContent  = '0';
-                    modelEl.textContent   = '—';
-                    if (statusEl) statusEl.textContent = 'No shifts recorded yet — data accumulates as Aris routes sessions.';
-                } else {
-                    const usd = typeof data.estimated_savings_usd === 'number'
-                        ? '$' + data.estimated_savings_usd.toFixed(4)
-                        : 'Collecting data…';
-                    savingsEl.textContent = usd;
-                    shiftsEl.textContent  = totalShifts.toLocaleString();
-
-                    // Shorten long model IDs for display
-                    let topModel = data.top_model_shifted_to || '—';
-                    if (topModel.includes('/')) topModel = topModel.split('/').pop();
-                    modelEl.textContent = topModel;
-
-                    if (statusEl) statusEl.textContent = 'Last updated: ' + new Date().toLocaleTimeString() + ' • Auto-refreshes every 60s';
-                }
-            } catch (e) {
-                console.warn('SI savings fetch failed:', e);
-                const statusEl = document.getElementById('si-status-line');
-                if (statusEl) statusEl.textContent = 'SI data unavailable — will retry in 60s';
-            }
-        }
-        // ── /Session Intelligence Widget ───────────────────────────────────────────
-
-        // Initialize
-        refresh();
-        loadEfficiencyData();
-        loadSISavings();
-        // Auto-refresh every 15 seconds (feed is the key update)
-        setInterval(refresh, 15000);
-        // Efficiency auto-refresh every 60 seconds
-        setInterval(loadEfficiencyData, 60000);
-        // SI savings auto-refresh every 60 seconds
-        setInterval(loadSISavings, 60000);
-        
-        console.log('AgentOptima Dashboard initialized', new Date());
-    </script>
+    <h1 class="text-5xl font-bold mb-4 leading-tight">
+      Stop overpaying<br/><span class="gradient-text">for AI.</span>
+    </h1>
+    <p class="text-slate-400 text-lg mb-8 max-w-xl mx-auto">
+      AgentOptima sits between your app and every AI provider.
+      Automatically routes to the cheapest capable model and caches
+      repeated work — zero code changes required.
+    </p>
+
+    <!-- Live stats -->
+    <div id="live-stats" class="flex items-center justify-center gap-6 text-sm text-slate-400 mb-10 hidden">
+      <span><span id="stat-tasks" class="text-white font-mono"></span> tasks routed</span>
+      <span class="text-slate-700">·</span>
+      <span><span id="stat-models" class="text-white font-mono"></span> models tracked</span>
+      <span class="text-slate-700">·</span>
+      <span><span id="stat-version" class="text-green-400 font-mono"></span> live</span>
+    </div>
+
+    <!-- Key creation card -->
+    <div class="card p-6 max-w-lg mx-auto mb-10 text-left">
+      <div id="key-form">
+        <div class="mb-3">
+          <label class="text-xs text-slate-400 block mb-1">Label</label>
+          <input id="key-label" type="text" value="my-app" placeholder="my-app" class="w-full px-3 py-2 text-sm"/>
+        </div>
+        <div class="mb-4">
+          <label class="text-xs text-slate-400 block mb-1">Budget limit — <span id="budget-display" class="text-white">$5.00</span></label>
+          <input id="budget-slider" type="range" min="50" max="10000" step="50" value="500" oninput="updateBudget(this.value)" class="w-full accent-sky-500"/>
+          <div class="flex justify-between text-xs text-slate-600 mt-1"><span>$0.50</span><span>$100</span></div>
+        </div>
+        <p id="key-error" class="text-red-400 text-xs mb-2 hidden"></p>
+        <button onclick="createKey()" class="btn-primary w-full py-2.5 rounded-lg text-sm">
+          Get your free API key →
+        </button>
+        <div class="text-center mt-3">
+          <span class="text-xs text-slate-600">Already have a key? </span>
+          <button onclick="promptSignIn()" class="text-xs hover:underline" style="color:#0ea5e9;">Sign in</button>
+        </div>
+      </div>
+
+      <div id="key-result" class="hidden">
+        <div class="text-xs font-medium mb-3 flex items-center gap-2" style="color:#22c55e;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Your API key is ready
+        </div>
+        <div class="flex items-center gap-2 rounded-lg p-3 mb-3" style="background:#0f172a;">
+          <code id="new-key-display" class="text-sm flex-1 truncate" style="color:#0ea5e9;"></code>
+          <button onclick="copyText('new-key-display')" class="p-1 rounded hover:bg-white/10">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+        <p class="text-xs text-slate-500 mb-4">Save this key — we can't show it again.</p>
+        <button onclick="goToDashboard()" class="btn-primary w-full py-2.5 rounded-lg text-sm flex items-center justify-center gap-2">
+          Open dashboard →
+        </button>
+      </div>
+    </div>
+
+    <!-- Code snippet -->
+    <div class="card overflow-hidden max-w-2xl mx-auto mb-16">
+      <div class="flex items-center gap-1 px-4 pt-3 border-b border-slate-800">
+        <button onclick="setSnippetTab('Python')" id="tab-Python" class="px-3 py-2 text-xs font-medium transition-colors tab-active">Python</button>
+        <button onclick="setSnippetTab('JavaScript')" id="tab-JavaScript" class="px-3 py-2 text-xs font-medium transition-colors text-slate-500 hover:text-slate-300">JavaScript</button>
+        <button onclick="setSnippetTab('curl')" id="tab-curl" class="px-3 py-2 text-xs font-medium transition-colors text-slate-500 hover:text-slate-300">curl</button>
+        <div class="ml-auto pb-1">
+          <button onclick="copyText('code-snippet')" class="p-1.5 rounded hover:bg-white/10">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+      <pre class="text-xs text-slate-300 p-4 leading-relaxed text-left"><code id="code-snippet"></code></pre>
+    </div>
+
+    <!-- Feature grid -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+      <div class="card p-5 text-left">
+        <div class="mb-3 text-sky-400">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        </div>
+        <div class="font-semibold mb-1 text-sm">Smart Routing</div>
+        <div class="text-xs text-slate-400 leading-relaxed">Picks the cheapest model for your task. Simple prompts get cheap models. Complex work gets quality models.</div>
+      </div>
+      <div class="card p-5 text-left">
+        <div class="mb-3 text-green-400">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="font-semibold mb-1 text-sm">Semantic Cache</div>
+        <div class="text-xs text-slate-400 leading-relaxed">Same question twice costs zero. Repeated prompts return instantly from cache — no API call, no bill.</div>
+      </div>
+      <div class="card p-5 text-left">
+        <div class="mb-3 text-yellow-400">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="font-semibold mb-1 text-sm">Hard Budget Limits</div>
+        <div class="text-xs text-slate-400 leading-relaxed">Set a spending cap. When you hit it, all calls stop. No surprise bills ever.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── DASHBOARD ─────────────────────────────────────────────────────────── -->
+<div id="dashboard" class="hidden">
+  <div class="max-w-4xl mx-auto px-6 py-8 fade-in">
+
+    <!-- Greeting -->
+    <div class="mb-8 flex items-center justify-between">
+      <div>
+        <h2 class="text-2xl font-bold mb-1" id="dash-label">Your dashboard</h2>
+        <p class="text-slate-400 text-sm">Last 30 days</p>
+      </div>
+      <button onclick="loadDashboard()" id="refresh-btn" class="text-slate-400 hover:text-white transition-colors">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      </button>
+    </div>
+
+    <!-- Hero savings -->
+    <div class="card p-8 mb-6 text-center relative overflow-hidden">
+      <div class="absolute inset-0 pointer-events-none" style="background:linear-gradient(135deg,rgba(14,165,233,0.05),rgba(34,197,94,0.05))"></div>
+      <div class="text-slate-400 text-sm mb-2">Total saved</div>
+      <div id="hero-saved" class="text-6xl font-bold gradient-text mb-2">$0.00</div>
+      <div class="text-slate-400 text-sm">
+        You spent <span id="hero-spent" class="text-white">$0.00</span> and saved
+        <span id="hero-multiplier" class="text-green-400">∞</span> vs using GPT-4o directly
+      </div>
+    </div>
+
+    <!-- Stats grid -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="card p-5">
+        <div class="text-xs text-slate-400 mb-1">Spent (30d)</div>
+        <div id="stat-spent" class="text-2xl font-bold">$0.0000</div>
+        <div class="text-xs text-slate-500 mt-1">actual cost</div>
+      </div>
+      <div class="card p-5">
+        <div class="text-xs text-slate-400 mb-1">Cache hits</div>
+        <div id="stat-cache-hits" class="text-2xl font-bold" style="color:#0ea5e9;">0</div>
+        <div class="text-xs text-slate-500 mt-1">free responses</div>
+      </div>
+      <div class="card p-5">
+        <div class="text-xs text-slate-400 mb-1">Routing saved</div>
+        <div id="stat-routing-saved" class="text-2xl font-bold text-green-400">$0.00</div>
+        <div class="text-xs text-slate-500 mt-1">vs GPT-4o baseline</div>
+      </div>
+      <div class="card p-5">
+        <div class="text-xs text-slate-400 mb-1">Cache saved</div>
+        <div id="stat-cache-saved" class="text-2xl font-bold text-yellow-400">$0.00</div>
+        <div class="text-xs text-slate-500 mt-1">from cache hits</div>
+      </div>
+    </div>
+
+    <!-- Budget bar -->
+    <div class="card p-5 mb-6">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-sm font-medium">Budget</span>
+        <span id="budget-label" class="text-xs text-slate-400"></span>
+      </div>
+      <div class="h-2 rounded-full overflow-hidden" style="background:#1e293b;">
+        <div id="budget-bar" class="h-full rounded-full bar-fill" style="width:0%;background:linear-gradient(90deg,#0ea5e9,#22c55e);"></div>
+      </div>
+      <div class="flex justify-between text-xs text-slate-500 mt-2">
+        <span id="budget-pct">0% used</span>
+        <span id="budget-remaining">$0.00 remaining</span>
+      </div>
+    </div>
+
+    <!-- API key + snippets -->
+    <div class="card overflow-hidden mb-6">
+      <div class="p-5 border-b border-slate-800">
+        <div class="text-sm font-medium mb-3">Your API key</div>
+        <div class="flex items-center gap-2 rounded-lg px-3 py-2" style="background:#0f172a;">
+          <code id="dash-key-display" class="text-sm flex-1 truncate" style="color:#0ea5e9;"></code>
+          <button onclick="copyText('dash-key-display')" class="p-1 rounded hover:bg-white/10">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center gap-1 px-4 pt-3 border-b border-slate-800">
+          <button onclick="setDashTab('Python')" id="dash-tab-Python" class="px-3 py-2 text-xs font-medium tab-active">Python</button>
+          <button onclick="setDashTab('JavaScript')" id="dash-tab-JavaScript" class="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-300">JavaScript</button>
+          <button onclick="setDashTab('curl')" id="dash-tab-curl" class="px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-300">curl</button>
+          <div class="ml-auto pb-1">
+            <button onclick="copyText('dash-snippet')" class="p-1.5 rounded hover:bg-white/10">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+        </div>
+        <pre class="text-xs text-slate-300 p-4 leading-relaxed text-left"><code id="dash-snippet"></code></pre>
+      </div>
+    </div>
+
+    <!-- Routing logic -->
+    <div class="card p-5">
+      <div class="text-sm font-medium mb-4">How your requests are routed</div>
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></div>
+          <span class="text-sm text-white w-40 flex-shrink-0">Simple prompts</span>
+          <span class="text-xs text-slate-400">→ gpt-4o-mini · fast + ultra-cheap</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:#0ea5e9;"></div>
+          <span class="text-sm text-white w-40 flex-shrink-0">Complex tasks</span>
+          <span class="text-xs text-slate-400">→ best model from 416K real benchmarks</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></div>
+          <span class="text-sm text-white w-40 flex-shrink-0">Strategy / security</span>
+          <span class="text-xs text-slate-400">→ quality model always · no compromise</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0"></div>
+          <span class="text-sm text-white w-40 flex-shrink-0">Repeated prompts</span>
+          <span class="text-xs text-slate-400">→ cache · instant · $0.00 cost</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .tab-active { color: white; border-bottom: 2px solid #0ea5e9; }
+</style>
+
+<script>
+const AO = 'https://agentoptima.ai';
+let currentKey = '';
+let pendingKey  = '';
+let snippetTab  = 'Python';
+let dashTab     = 'Python';
+
+const SNIPPETS = {
+  Python: (k) => `from openai import OpenAI\n\nclient = OpenAI(\n    api_key="${k}",\n    base_url="https://agentoptima.ai/v1"\n)\n\nresponse = client.chat.completions.create(\n    model="auto",   # ← AgentOptima picks cheapest model\n    messages=[{"role": "user", "content": "Hello!"}]\n)\nprint(response.choices[0].message.content)`,
+  JavaScript: (k) => `import OpenAI from 'openai';\n\nconst client = new OpenAI({\n  apiKey: '${k}',\n  baseURL: 'https://agentoptima.ai/v1'\n});\n\nconst response = await client.chat.completions.create({\n  model: 'auto',   // ← AgentOptima picks cheapest model\n  messages: [{ role: 'user', content: 'Hello!' }]\n});\nconsole.log(response.choices[0].message.content);`,
+  curl: (k) => `curl https://agentoptima.ai/v1/chat/completions \\\\\n  -H "Authorization: Bearer ${k}" \\\\\n  -H "Content-Type: application/json" \\\\\n  -d '{\n    "model": "auto",\n    "messages": [{"role": "user", "content": "Hello!"}]\n  }'`,
+};
+
+function fmt(cents) { return '$' + (cents / 100).toFixed(2); }
+function fmtSmall(cents) { return '$' + (cents / 100).toFixed(4); }
+
+function updateBudget(v) {
+  document.getElementById('budget-display').textContent = '$' + (v/100).toFixed(2);
+}
+
+function copyText(id) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.textContent.trim());
+}
+
+function setSnippetTab(t) {
+  snippetTab = t;
+  ['Python','JavaScript','curl'].forEach(tab => {
+    const btn = document.getElementById('tab-'+tab);
+    btn.className = tab === t
+      ? 'px-3 py-2 text-xs font-medium tab-active'
+      : 'px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-300';
+  });
+  document.getElementById('code-snippet').textContent = SNIPPETS[t](pendingKey || 'ao-your-key-here');
+}
+
+function setDashTab(t) {
+  dashTab = t;
+  ['Python','JavaScript','curl'].forEach(tab => {
+    const btn = document.getElementById('dash-tab-'+tab);
+    btn.className = tab === t
+      ? 'px-3 py-2 text-xs font-medium tab-active'
+      : 'px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-300';
+  });
+  document.getElementById('dash-snippet').textContent = SNIPPETS[t](currentKey);
+}
+
+async function createKey() {
+  const label  = document.getElementById('key-label').value.trim() || 'my-app';
+  const budget = parseInt(document.getElementById('budget-slider').value);
+  const errEl  = document.getElementById('key-error');
+  errEl.classList.add('hidden');
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Creating…';
+
+  try {
+    const r = await fetch(`${AO}/api/v1/keys/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label, budget_limit_cents: budget })
+    });
+    const d = await r.json();
+    if (d.key) {
+      pendingKey = d.key;
+      document.getElementById('new-key-display').textContent = d.key;
+      document.getElementById('key-form').classList.add('hidden');
+      document.getElementById('key-result').classList.remove('hidden');
+      document.getElementById('code-snippet').textContent = SNIPPETS[snippetTab](d.key);
+    } else {
+      errEl.textContent = 'Failed to create key. Try again.';
+      errEl.classList.remove('hidden');
+    }
+  } catch {
+    errEl.textContent = 'Network error. Try again.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Get your free API key →';
+  }
+}
+
+function goToDashboard() {
+  if (pendingKey) signIn(pendingKey);
+}
+
+function promptSignIn() {
+  const k = prompt('Paste your ao-xxxx key:');
+  if (k && k.startsWith('ao-')) signIn(k.trim());
+}
+
+function signIn(key) {
+  currentKey = key;
+  localStorage.setItem('ao_key', key);
+  showDashboard();
+}
+
+function signOut() {
+  currentKey = '';
+  localStorage.removeItem('ao_key');
+  showLanding();
+}
+
+function showLanding() {
+  document.getElementById('landing').classList.remove('hidden');
+  document.getElementById('dashboard').classList.add('hidden');
+  document.getElementById('signout-btn').classList.add('hidden');
+  document.getElementById('nav-plan').classList.add('hidden');
+  document.getElementById('code-snippet').textContent = SNIPPETS[snippetTab]('ao-your-key-here');
+}
+
+function showDashboard() {
+  document.getElementById('landing').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  document.getElementById('signout-btn').classList.remove('hidden');
+  document.getElementById('dash-key-display').textContent = currentKey;
+  document.getElementById('dash-snippet').textContent = SNIPPETS[dashTab](currentKey);
+  loadDashboard();
+}
+
+async function loadDashboard() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn) btn.style.opacity = '0.5';
+  try {
+    const r = await fetch(`${AO}/api/v1/keys/status`, {
+      headers: { Authorization: `Bearer ${currentKey}` }
+    });
+    if (!r.ok) { signOut(); return; }
+    const d = await r.json();
+    renderDashboard(d);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    if (btn) btn.style.opacity = '1';
+  }
+}
+
+function renderDashboard(d) {
+  const s30 = d.last_30_days;
+  const savedUSD  = s30.saved_cents / 100;
+  const spentUSD  = s30.spent_cents / 100;
+  const multi     = spentUSD > 0 ? ((savedUSD + spentUSD) / spentUSD).toFixed(1) + 'x' : '∞';
+  const budgetPct = Math.min(100, (d.spent_total_cents / 100 / d.budget_limit_usd) * 100);
+
+  document.getElementById('dash-label').textContent = d.label || 'Your dashboard';
+  document.getElementById('hero-saved').textContent  = '$' + savedUSD.toFixed(2);
+  document.getElementById('hero-spent').textContent  = '$' + spentUSD.toFixed(4);
+  document.getElementById('hero-multiplier').textContent = multi;
+
+  document.getElementById('stat-spent').textContent         = '$' + spentUSD.toFixed(4);
+  document.getElementById('stat-cache-hits').textContent    = s30.cache_hit_count.toLocaleString();
+  document.getElementById('stat-routing-saved').textContent = fmt(s30.routing_saved_cents);
+  document.getElementById('stat-cache-saved').textContent   = fmt(s30.cache_saved_cents);
+
+  document.getElementById('budget-label').textContent     = `$${(d.spent_total_cents/100).toFixed(4)} of $${d.budget_limit_usd.toFixed(2)} used`;
+  document.getElementById('budget-pct').textContent       = budgetPct.toFixed(1) + '% used';
+  document.getElementById('budget-remaining').textContent = '$' + d.budget_remaining_usd.toFixed(2) + ' remaining';
+
+  const bar = document.getElementById('budget-bar');
+  bar.style.width = budgetPct + '%';
+  bar.style.background = budgetPct > 80 ? '#ef4444' : budgetPct > 60 ? '#f59e0b' : 'linear-gradient(90deg,#0ea5e9,#22c55e)';
+
+  const planEl = document.getElementById('nav-plan');
+  planEl.textContent = d.plan;
+  planEl.classList.remove('hidden');
+}
+
+async function loadLandingStats() {
+  try {
+    const r = await fetch(`${AO}/api/v1/status`);
+    const d = await r.json();
+    document.getElementById('stat-tasks').textContent   = d.tasks_logged.toLocaleString();
+    document.getElementById('stat-models').textContent  = d.models_tracked;
+    document.getElementById('stat-version').textContent = 'v' + d.version;
+    document.getElementById('live-stats').classList.remove('hidden');
+  } catch {}
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const stored = localStorage.getItem('ao_key');
+  if (stored && stored.startsWith('ao-')) {
+    currentKey = stored;
+    showDashboard();
+  } else {
+    showLanding();
+    loadLandingStats();
+  }
+});
+</script>
 </body>
 </html>
