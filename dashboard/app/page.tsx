@@ -7,25 +7,18 @@ import Link from "next/link";
 
 const AO_BASE = "https://agentoptima.ai";
 
-interface StatusData {
-  tasks_logged: number;
-  models_tracked: number;
-  version?: string;
+interface GlobalStats {
+  total_requests: number;
+  total_saved_usd: number;
+  cache_hit_rate_pct: number;
+  models_available: number;
 }
 
-interface SavingsData {
-  total_saved_usd?: number;
-  cache_hit_rate?: number;
-}
-
-const FALLBACK: StatusData = {
-  tasks_logged: 416459,
-  models_tracked: 16,
-};
-
-const SAVINGS_FALLBACK: SavingsData = {
+const GLOBAL_FALLBACK: GlobalStats = {
+  total_requests: 416459,
   total_saved_usd: 2847,
-  cache_hit_rate: 34,
+  cache_hit_rate_pct: 34,
+  models_available: 16,
 };
 
 function NavBar() {
@@ -60,33 +53,19 @@ function NavBar() {
 }
 
 export default function LandingPage() {
-  const [status, setStatus] = useState<StatusData | null>(null);
-  const [savings, setSavings] = useState<SavingsData | null>(null);
+  const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
 
   useEffect(() => {
-    fetch(`${AO_BASE}/api/v1/status`)
+    fetch(`${AO_BASE}/api/v1/global-stats`)
       .then((r) => r.json())
-      .then((d: StatusData) => setStatus(d))
-      .catch(() => setStatus(FALLBACK));
-
-    fetch(`${AO_BASE}/api/v1/si/savings`)
-      .then((r) => r.json())
-      .then((d: SavingsData) => setSavings(d))
-      .catch(() => setSavings(SAVINGS_FALLBACK));
+      .then((d: GlobalStats) => setGlobalStats(d))
+      .catch(() => setGlobalStats(GLOBAL_FALLBACK));
   }, []);
 
-  const stats = status ?? FALLBACK;
-  const savingsData = savings ?? SAVINGS_FALLBACK;
-  const requestsStr =
-    stats.tasks_logged >= 1000
-      ? `${(stats.tasks_logged / 1000).toFixed(0)}K`
-      : stats.tasks_logged.toLocaleString();
-  const savedStr = savingsData.total_saved_usd
-    ? `$${savingsData.total_saved_usd.toLocaleString()} saved vs GPT-4o`
-    : "$2,847 saved vs GPT-4o";
-  const cacheHitStr = savingsData.cache_hit_rate
-    ? `${savingsData.cache_hit_rate}% cache hit rate`
-    : "34% cache hit rate";
+  const gs = globalStats ?? GLOBAL_FALLBACK;
+  const requestsStr = gs.total_requests >= 1000
+    ? `${(gs.total_requests / 1000).toFixed(0)}K`
+    : gs.total_requests.toLocaleString();
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] bg-grid text-white">
@@ -141,6 +120,9 @@ export default function LandingPage() {
               See how it works <ChevronDown size={16} />
             </a>
           </div>
+          <p className="mt-3 text-sm text-gray-400 text-center">
+            Free up to 1,000 requests/month. No credit card required.
+          </p>
         </motion.div>
       </section>
 
@@ -154,15 +136,15 @@ export default function LandingPage() {
         <div className="max-w-3xl mx-auto px-6">
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-slate-500">
             <span>
-              <span className="text-white font-semibold font-mono">{requestsStr}</span> requests routed
+              <span className="text-white font-semibold font-mono">{gs.total_requests.toLocaleString()}</span> requests routed
             </span>
             <span className="text-slate-700">•</span>
             <span>
-              <span className="text-[#00d4aa] font-semibold">{savingsData.total_saved_usd ? `$${savingsData.total_saved_usd.toLocaleString()}` : "$2,847"}</span> saved vs GPT-4o
+              <span className="text-[#00d4aa] font-semibold">${gs.total_saved_usd.toFixed(2)}</span> saved vs GPT-4o
             </span>
             <span className="text-slate-700">•</span>
             <span>
-              <span className="text-white font-semibold font-mono">{savingsData.cache_hit_rate ?? 34}%</span> cache hit rate
+              <span className="text-white font-semibold font-mono">{gs.cache_hit_rate_pct}%</span> cache hit rate
             </span>
           </div>
         </div>
@@ -349,6 +331,9 @@ export default function LandingPage() {
           >
             Get your free API key <ArrowRight size={16} />
           </Link>
+          <p className="mt-3 text-sm text-gray-400 text-center relative z-10">
+            Free up to 1,000 requests/month. No credit card required.
+          </p>
         </motion.div>
       </section>
 

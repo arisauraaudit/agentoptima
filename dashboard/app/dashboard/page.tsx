@@ -30,10 +30,28 @@ interface KeyStatus {
   enabled: boolean;
 }
 
+interface RecentTask {
+  id: number;
+  task_type: string;
+  model_short: string;
+  cost_cents: number | null;
+  logged_at: string | null;
+  success: boolean;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtUSD(amount: number): string {
   return `$${amount.toFixed(2)}`;
+}
+
+function timeAgo(isoString: string | null): string {
+  if (!isoString) return "—";
+  const diff = (Date.now() - new Date(isoString).getTime()) / 1000;
+  if (diff < 60) return `${Math.round(diff)}s ago`;
+  if (diff < 3600) return `${Math.round(diff / 60)} min ago`;
+  if (diff < 86400) return `${Math.round(diff / 3600)} hr ago`;
+  return `${Math.round(diff / 86400)}d ago`;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -133,6 +151,115 @@ function MetricCard({
   );
 }
 
+// ── Empty/connected state ─────────────────────────────────────────────────────
+
+function ConnectedEmptyState({ apiKey }: { apiKey: string }) {
+  const snippet = `import openai
+client = openai.OpenAI(
+    api_key="${apiKey.slice(0, 10)}...",
+    base_url="https://agentoptima.ai/v1"
+)`;
+  const [copied, setCopied] = useState(false);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="card border-[rgba(0,212,170,0.2)] p-8 text-center"
+    >
+      <div className="text-3xl mb-3">⚡</div>
+      <h2 className="text-xl font-bold mb-2">You&apos;re connected.</h2>
+      <p className="text-slate-400 text-sm mb-6">
+        Make your first API call to see your savings appear here.
+      </p>
+      <div className="text-left bg-[rgba(0,212,170,0.04)] border border-[rgba(0,212,170,0.12)] rounded-lg p-4 mb-4 relative">
+        <pre className="text-xs text-slate-300 font-mono leading-relaxed overflow-x-auto">{snippet}</pre>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(snippet);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+          }}
+          className="absolute top-3 right-3 p-1.5 rounded hover:bg-white/10 transition-colors"
+        >
+          {copied
+            ? <Check size={13} className="text-[#00d4aa]" />
+            : <Copy size={13} className="text-slate-400" />}
+        </button>
+      </div>
+      <Link href="/docs" className="inline-flex items-center gap-1 text-sm text-[#00d4aa] hover:underline">
+        View docs <ArrowRight size={13} />
+      </Link>
+    </motion.div>
+  );
+}
+
+// ── Activity log ──────────────────────────────────────────────────────────────
+
+function ActivityLog({ apiKey }: { apiKey: string }) {
+  const [tasks, setTasks] = useState<RecentTask[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch(`${AO_BASE}/api/v1/tasks/recent?limit=10`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.tasks) setTasks(d.tasks);
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, [apiKey]);
+
+  if (!loaded) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.34 }}
+      className="card p-5 mb-5"
+    >
+      <div className="text-sm font-semibold mb-4">Recent Activity</div>
+      {tasks.length === 0 ? (
+        <p className="text-xs text-slate-500">
+          Per-request logging coming soon. Your totals above are live.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-slate-500 border-b border-[rgba(255,255,255,0.05)]">
+                <th className="text-left pb-2 font-medium">Time</th>
+                <th className="text-left pb-2 font-medium">Type</th>
+                <th className="text-left pb-2 font-medium">Model</th>
+                <th className="text-right pb-2 font-medium">Cost</th>
+                <th className="text-right pb-2 font-medium">Cache</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.map((t) => (
+                <tr key={t.id} className="border-b border-[rgba(255,255,255,0.03)] hover:bg-white/[0.02]">
+                  <td className="py-2 pr-4 text-slate-400">{timeAgo(t.logged_at)}</td>
+                  <td className="py-2 pr-4 text-slate-300 capitalize">{t.task_type ?? "general"}</td>
+                  <td className="py-2 pr-4 font-mono text-slate-400">{t.model_short ?? "—"}</td>
+                  <td className="py-2 pr-4 text-right text-slate-300">
+                    {t.cost_cents === null ? "—" : t.cost_cents === 0 ? "$0" : `${(t.cost_cents * 0.01).toFixed(4)}¢`}
+                  </td>
+                  <td className="py-2 text-right">
+                    {t.cost_cents === 0 ? "✅" : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 // ── Code snippet ──────────────────────────────────────────────────────────────
 
 const MINI_SNIPPET = (k: string) =>
@@ -226,13 +353,16 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
   const cacheSaved = status ? status.last_30_days.cache_saved_cents / 100 : 0;
   const routingSaved = status ? status.last_30_days.routing_saved_cents / 100 : 0;
   const budgetRemaining = status?.budget_remaining_usd ?? 0;
-  // Estimate total requests: spent + saved / avg cost per request
-  // rough: each request costs ~0.001 on average
   const estimatedRequests = status
     ? Math.max(1, Math.round((status.last_30_days.spent_cents + (status.last_30_days.saved_cents || 0)) / 0.1))
     : 0;
 
   const shortKey = apiKey.slice(0, 8) + "…";
+
+  // Determine empty state: brand new user with no activity
+  const isEmpty = status
+    ? status.spent_total_cents === 0 && status.last_30_days.cache_hit_count === 0
+    : false;
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] bg-grid text-white">
@@ -274,12 +404,29 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <h1 className="text-3xl font-black tracking-tight mb-1">
-            Here&apos;s what AgentOptima saved you.
-          </h1>
-          <p className="text-slate-500 text-sm">Last 30 days · auto-refreshes every 30s</p>
+          {isEmpty ? (
+            <>
+              <h1 className="text-3xl font-black tracking-tight mb-1">Welcome to AgentOptima.</h1>
+              <p className="text-slate-500 text-sm">Your key is active · make your first call to see savings</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-3xl font-black tracking-tight mb-1">
+                Here&apos;s what AgentOptima saved you.
+              </h1>
+              {status?.label && (
+                <p className="text-slate-500 text-xs mt-0.5 font-mono">{status.label}</p>
+              )}
+              <p className="text-slate-500 text-sm">Last 30 days · auto-refreshes every 30s</p>
+            </>
+          )}
         </motion.div>
 
+        {/* Empty state OR metric cards */}
+        {isEmpty ? (
+          <ConnectedEmptyState apiKey={apiKey} />
+        ) : (
+          <>
         {/* 4 metric cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
           <MetricCard
@@ -322,9 +469,12 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
         >
           Free tier: 1,000 requests/month. Upgrade for unlimited.
         </motion.p>
+        </>)}
+        {/* Activity log (always shown when not empty) */}
+        {!isEmpty && <ActivityLog apiKey={apiKey} />}
 
         {/* Savings breakdown */}
-        <motion.div
+        {!isEmpty && <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.22 }}
@@ -362,7 +512,7 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
             <span>Spent this month</span>
             <span className="text-white font-medium">${spent30d.toFixed(4)}</span>
           </div>
-        </motion.div>
+        </motion.div>}
 
         {/* API key + integration reminder */}
         <motion.div
