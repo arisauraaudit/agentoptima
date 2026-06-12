@@ -18,3 +18,19 @@ INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
 INFO:     Finished server process [1555212]
+2026-06-11T23:55:57Z [INFO] agentoptima: DB URL detected: NO
+INFO:     Started server process [2573396]
+INFO:     Waiting for application startup.
+2026-06-11T23:55:57Z [WARNING] agentoptima: DB init warning: DATABASE_URL not set
+2026-06-11T23:55:57Z [INFO] agentoptima: AgentOptima API v1.1.10 starting...
+2026-06-11T23:55:57Z [INFO] agentoptima: Port: 8000
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2026-06-11T23:56:01Z [INFO] agentoptima: [07073af7] GET /health → 200 (4ms)
+2026-06-11T23:56:38Z [ERROR] agentoptima.keys: Key creation failed: DATABASE_URL not set
+2026-06-11T23:56:38Z [WARNING] agentoptima: [b56d920d] POST /api/v1/keys/create → 500 (16ms)
+2026-06-11T23:56:43Z [INFO] agentoptima: [a9b8880a] GET /portal/redlion → 404 (1ms)
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2573396]

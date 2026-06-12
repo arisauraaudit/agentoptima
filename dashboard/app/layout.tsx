@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AgentOptima - Real AI Model Rankings from Real Agents",
-  description: "Track AI model performance, cost efficiency, and rankings powered by real-world agent data.",
+  title: "AgentOptima — Stop overpaying for AI",
+  description: "One line of code. AgentOptima routes every request to the cheapest capable model and caches repeated work — automatically.",
 };
 
 export default function RootLayout({

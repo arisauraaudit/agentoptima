@@ -3,9 +3,11 @@
 @tailwind utilities;
 
 :root {
-  --background: #0f172a;
-  --foreground: #f8fafc;
-  --primary: #0ea5e9;
+  --background: #0a0a0f;
+  --foreground: #f0f0f5;
+  --primary: #00d4aa;
+  --primary-dark: #00a882;
+  --primary-glow: rgba(0, 212, 170, 0.15);
 }
 
 body {
@@ -14,31 +16,62 @@ body {
   font-family: var(--font-inter), system-ui, sans-serif;
 }
 
+/* Subtle grid background */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
 .gradient-text {
-  background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%);
+  background: linear-gradient(135deg, #00d4aa 0%, #00ff88 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .card {
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(15, 15, 25, 0.8);
+  border: 1px solid rgba(0, 212, 170, 0.12);
   border-radius: 12px;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+}
+
+.card-glow {
+  background: rgba(15, 15, 25, 0.8);
+  border: 1px solid rgba(0, 212, 170, 0.2);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 30px rgba(0, 212, 170, 0.06);
 }
 
 .button-primary {
-  background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%);
-  color: white;
+  background: #00d4aa;
+  color: #0a0a0f;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
-  font-weight: 600;
+  font-weight: 700;
   transition: all 0.2s;
   border: none;
   cursor: pointer;
+  letter-spacing: -0.01em;
 }
 
 .button-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  background: #00eabc;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 212, 170, 0.3);
+}
+
+.button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Code blocks */
+pre, code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
 }

@@ -3,3 +3,9 @@
 __pycache__/
 *.pyc
 logs/
+dashboard/.next/
+dashboard/node_modules/
+dashboard/package-lock.json
+api.log
+*.pyc
+**/__pycache__/
