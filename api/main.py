@@ -236,6 +236,23 @@ def init_db():
                 """)
                 cur.execute("CREATE INDEX IF NOT EXISTS idx_cache_key ON response_cache(cache_key)")
                 cur.execute("""
+                    CREATE TABLE IF NOT EXISTS semantic_cache (
+                        id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        cache_key    TEXT UNIQUE NOT NULL,
+                        prompt_text  TEXT NOT NULL,
+                        embedding    TEXT,
+                        embedding_json JSONB,
+                        response_json JSONB NOT NULL,
+                        model_used   TEXT NOT NULL,
+                        cost_cents   REAL NOT NULL,
+                        hit_count    INTEGER DEFAULT 0,
+                        created_at   TIMESTAMPTZ DEFAULT NOW(),
+                        expires_at   TIMESTAMPTZ DEFAULT NOW() + INTERVAL '7 days',
+                        cache_type   TEXT DEFAULT 'semantic'
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_semantic_key ON semantic_cache(cache_key)")
+                cur.execute("""
                     CREATE TABLE IF NOT EXISTS savings_log (
                         id                   SERIAL PRIMARY KEY,
                         api_key_id           TEXT,

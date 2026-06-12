@@ -15,6 +15,7 @@ Key behaviours:
 
 import os, hashlib, json, time, uuid, logging
 import httpx
+from api.semantic_cache import check_semantic_cache, store_semantic_cache
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Header, Request
@@ -321,14 +322,20 @@ async def chat_completions(
     # 2. Budget check
     check_budget(key_record)
 
-    # 3. Cache check (skip if x-ao-cache: off)
-    cache_hit     = False
-    saved_cents   = 0.0
+    # 3. Cache check (exact first, then semantic)
+    cache_hit   = False
+    saved_cents = 0.0
     if x_ao_cache != "off":
+        # 3a. Exact cache
         cached = check_cache(request.messages)
         if cached:
             log_savings(key_record["id"], 0, cached["saved_cents"], True, cached["model"], "cached")
             return JSONResponse(content=cached["response"])
+        # 3b. Semantic cache (conservative: threshold=0.97, no real-time queries)
+        sem_cached = check_semantic_cache(request.messages, _get_db)
+        if sem_cached:
+            log_savings(key_record["id"], 0, sem_cached["saved_cents"], True, sem_cached["model"], "semantic_cache")
+            return JSONResponse(content=sem_cached["response"])
 
     # 4. Model selection
     model, task_type = select_model(request.messages, request.model)
@@ -341,6 +348,8 @@ async def chat_completions(
     # 6. Store in cache (if cacheable)
     if x_ao_cache != "off" and cost_cents > 0:
         store_cache(request.messages, response_data, model, cost_cents)
+        # Store in semantic cache too (async-safe: fails silently)
+        store_semantic_cache(request.messages, response_data, model, cost_cents, _get_db)
 
     # 7. Log savings (vs always using GPT-4o at ~0.5¢/call baseline)
     gpt4o_baseline_cents = 0.5
