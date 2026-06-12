@@ -105,7 +105,7 @@ def init_db():
                     )
                 """)
                 # Seed Aris master key (idempotent)
-                master_key  = os.environ.get("ARIS_API_KEY", "ao-41727e957d734ef638903180293af0d6171efda7373902e6")
+                master_key  = os.environ.get("ARIS_API_KEY", "")
                 master_hash = hashlib.sha256(master_key.encode()).hexdigest()
                 cur.execute("""
                     INSERT INTO api_keys (key_hash, agent_name)
