@@ -60,11 +60,21 @@ def _get_db():
 
 # ── API Key Validation ─────────────────────────────────────────────────────────
 
+# Master OpenRouter key — if a request comes in with this key, map it to aris-internal
+_MASTER_OR_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+_ARIS_AO_KEY   = "ao-Zsttn7uaJ84LjVOkgp8xMVAQjxi4CIIprgjXFSTzB2c"
+
 def validate_api_key(raw_key: str) -> dict:
     """
     Validate an ao-xxxx key. Returns key record or raises HTTPException.
-    Creates demo key on first use if DB table not yet migrated (Phase 0 safety).
+    Also accepts the master OpenRouter key — maps it to the aris-internal ao key.
+    This allows OpenClaw itself to route through AO transparently.
     """
+    # If OpenClaw sends the raw OpenRouter key, remap to aris-internal AO key
+    if _MASTER_OR_KEY and raw_key == _MASTER_OR_KEY:
+        raw_key = _ARIS_AO_KEY
+        logger.info("OpenClaw master key detected — remapped to aris-internal AO key")
+
     if not raw_key or not raw_key.startswith("ao-"):
         raise HTTPException(status_code=401, detail="Invalid API key format. Use: Bearer ao-yourkey")
 
