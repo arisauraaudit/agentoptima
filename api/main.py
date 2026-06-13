@@ -569,9 +569,9 @@ async def global_stats():
     except Exception as e:
         logger.warning(f"global_stats error: {e}")
         return JSONResponse({
-            "total_requests": 416459,
-            "total_saved_usd": 2847.00,
-            "cache_hit_rate_pct": 34.0,
+            "total_requests": 0,
+            "total_saved_usd": 0.0,
+            "cache_hit_rate_pct": 0.0,
             "models_available": 16,
         })
 
