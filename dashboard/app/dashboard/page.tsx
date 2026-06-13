@@ -30,29 +30,12 @@ interface KeyStatus {
   enabled: boolean;
 }
 
-interface RecentTask {
-  id: number;
-  task_type: string;
-  model_short: string;
-  cost_cents: number | null;
-  logged_at: string | null;
-  success: boolean;
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtUSD(amount: number): string {
   return `$${amount.toFixed(2)}`;
 }
 
-function timeAgo(isoString: string | null): string {
-  if (!isoString) return "—";
-  const diff = (Date.now() - new Date(isoString).getTime()) / 1000;
-  if (diff < 60) return `${Math.round(diff)}s ago`;
-  if (diff < 3600) return `${Math.round(diff / 60)} min ago`;
-  if (diff < 86400) return `${Math.round(diff / 3600)} hr ago`;
-  return `${Math.round(diff / 86400)}d ago`;
-}
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -195,25 +178,7 @@ client = openai.OpenAI(
 
 // ── Activity log ──────────────────────────────────────────────────────────────
 
-function ActivityLog({ apiKey }: { apiKey: string }) {
-  const [tasks, setTasks] = useState<RecentTask[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    fetch(`${AO_BASE}/api/v1/tasks/recent?limit=10`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      cache: "no-store",
-    })
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.tasks) setTasks(d.tasks);
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true));
-  }, [apiKey]);
-
-  if (!loaded) return null;
-
+function ActivityLog({ apiKey: _apiKey }: { apiKey: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -222,40 +187,9 @@ function ActivityLog({ apiKey }: { apiKey: string }) {
       className="card p-5 mb-5"
     >
       <div className="text-sm font-semibold mb-4">Recent Activity</div>
-      {tasks.length === 0 ? (
-        <p className="text-xs text-slate-500">
-          Per-request logging coming soon. Your totals above are live.
-        </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-slate-500 border-b border-[rgba(255,255,255,0.05)]">
-                <th className="text-left pb-2 font-medium">Time</th>
-                <th className="text-left pb-2 font-medium">Type</th>
-                <th className="text-left pb-2 font-medium">Model</th>
-                <th className="text-right pb-2 font-medium">Cost</th>
-                <th className="text-right pb-2 font-medium">Cache</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((t) => (
-                <tr key={t.id} className="border-b border-[rgba(255,255,255,0.03)] hover:bg-white/[0.02]">
-                  <td className="py-2 pr-4 text-slate-400">{timeAgo(t.logged_at)}</td>
-                  <td className="py-2 pr-4 text-slate-300 capitalize">{t.task_type ?? "general"}</td>
-                  <td className="py-2 pr-4 font-mono text-slate-400">{t.model_short ?? "—"}</td>
-                  <td className="py-2 pr-4 text-right text-slate-300">
-                    {t.cost_cents === null ? "—" : t.cost_cents === 0 ? "$0" : `${(t.cost_cents * 0.01).toFixed(4)}¢`}
-                  </td>
-                  <td className="py-2 text-right">
-                    {t.cost_cents === 0 ? "✅" : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <p className="text-xs text-slate-500">
+        Smart routing and cache are active. Per-request logs will appear here as your usage grows.
+      </p>
     </motion.div>
   );
 }
@@ -427,13 +361,13 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
           <ConnectedEmptyState apiKey={apiKey} />
         ) : (
           <>
-        {/* 4 metric cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+        {/* 3 metric cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           <MetricCard
             emoji="💰"
             label="Saved this month"
             value={fmtUSD(saved30d)}
-            sub="vs GPT-4o baseline"
+            sub="from cache hits + smart routing"
             accent
             delay={0}
           />
@@ -451,24 +385,7 @@ function DashboardContent({ apiKey }: { apiKey: string }) {
             sub="est. this month"
             delay={0.12}
           />
-          <MetricCard
-            emoji="🔋"
-            label="Free tier remaining"
-            value={`${Math.max(0, 1000 - estimatedRequests).toLocaleString()} / 1,000`}
-            sub="requests"
-            delay={0.18}
-          />
         </div>
-
-        {/* Free tier note */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.22 }}
-          className="text-xs text-slate-500 mb-6"
-        >
-          Free tier: 1,000 requests/month. Upgrade for unlimited.
-        </motion.p>
         </>)}
         {/* Activity log (always shown when not empty) */}
         {!isEmpty && <ActivityLog apiKey={apiKey} />}

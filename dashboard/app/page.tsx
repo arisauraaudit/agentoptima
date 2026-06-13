@@ -121,7 +121,7 @@ export default function LandingPage() {
             </a>
           </div>
           <p className="mt-3 text-sm text-gray-400 text-center">
-            Free up to 1,000 requests/month. No credit card required.
+            No credit card required. Cancel anytime.
           </p>
         </motion.div>
       </section>
@@ -140,7 +140,7 @@ export default function LandingPage() {
             </span>
             <span className="text-slate-700">•</span>
             <span>
-              <span className="text-[#00d4aa] font-semibold">${gs.total_saved_usd.toFixed(2)}</span> saved vs GPT-4o
+              <span className="text-[#00d4aa] font-semibold">${gs.total_saved_usd.toFixed(2)}</span> saved
             </span>
             <span className="text-slate-700">•</span>
             <span>
@@ -182,7 +182,7 @@ export default function LandingPage() {
             {
               num: "03",
               title: "Save",
-              desc: "Cache hits cost $0. Smart routing is 8x cheaper than GPT-4o on average. Watch savings stack up.",
+              desc: "Cache hits cost $0. Smart routing picks the cheapest capable model automatically. Watch savings stack up.",
               accent: "#00d4aa",
             },
           ].map((step, i) => (
@@ -221,7 +221,7 @@ export default function LandingPage() {
           </div>
           <pre className="text-sm p-6 overflow-x-auto leading-7">
             <code>
-              <span className="text-slate-500"># Before — paying full GPT-4o price</span>
+              <span className="text-slate-500"># Before — paying full price</span>
               {"\n"}
               <span className="text-slate-300">client = OpenAI(</span>
               {"\n"}
@@ -332,7 +332,7 @@ export default function LandingPage() {
             Get your free API key <ArrowRight size={16} />
           </Link>
           <p className="mt-3 text-sm text-gray-400 text-center relative z-10">
-            Free up to 1,000 requests/month. No credit card required.
+            No credit card required. Cancel anytime.
           </p>
         </motion.div>
       </section>

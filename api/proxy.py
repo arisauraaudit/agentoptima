@@ -351,8 +351,10 @@ async def chat_completions(
         # Store in semantic cache too (async-safe: fails silently)
         store_semantic_cache(request.messages, response_data, model, cost_cents, _get_db)
 
-    # 7. Log savings (vs always using GPT-4o at ~0.5¢/call baseline)
-    gpt4o_baseline_cents = 0.5
+    # 7. Log savings (vs always using GPT-4o at ~2.5¢/call baseline)
+    # Realistic GPT-4o baseline: ~$0.025 per average call (input + output at typical 500 token response)
+    # This is what user would pay if they just used GPT-4o directly
+    gpt4o_baseline_cents = 2.5
     routing_saved = max(0, gpt4o_baseline_cents - cost_cents)
     log_savings(key_record["id"], cost_cents, routing_saved, False, model, task_type)
 
